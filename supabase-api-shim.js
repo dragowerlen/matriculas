@@ -128,13 +128,7 @@ async function apiListar(aba){
     de += TAMANHO_PAGINA;
   }
 
-  const campos = ["linha"].concat(CAMPOS_APP);
-  const linhas = todosOsDados.map(linha => {
-    const obj = linhaSupabaseParaContatoApp(linha);
-    return campos.map(c => c === "linha" ? obj.linha : obj[c]);
-  });
-
-  return { campos, aba, linhas };
+  return todosOsDados.map(linha => linhaSupabaseParaContatoApp(linha));
 }
 
 /* ============================================================
