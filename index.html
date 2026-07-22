@@ -1,0 +1,2079 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#123832">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="CRM">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
+<title>Matrículas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #F3F1EA;
+    --surface: #FFFFFF;
+    --ink: #171A1C;
+    --ink-soft: #63676C;
+    --ink-faint: #9A9D9F;
+    --border: #E1DED2;
+    --accent: #123832;
+    --accent-2: #1B5A4F;
+    --accent-soft: #E3ECE9;
+    --whatsapp: #22C35E;
+    --danger: #A23B2E;
+    --danger-soft: #F5E3DF;
+    --radius: 14px;
+    --radius-sm: 9px;
+    --shadow: 0 1px 2px rgba(23,26,28,.04), 0 8px 24px -12px rgba(23,26,28,.18);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body{ margin: 0; background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased; }
+  #app{ max-width: 520px; margin: 0 auto; min-height: 100vh; background: var(--bg); display: flex; flex-direction: column; position: relative; }
+  h1,h2,h3{ font-family: 'Space Grotesk', sans-serif; margin: 0; letter-spacing: -0.01em; }
+  button{ font-family: inherit; cursor: pointer; }
+  input, select, textarea{ font-family: inherit; font-size: 15px; }
+
+  /* Cabeçalho inteiro (título, busca, botões, filtros) gruda como um
+     bloco único ao rolar a tela — evita a sobreposição bagunçada de
+     ter vários elementos "sticky" separados competindo pela mesma
+     posição, que fazia partes do conteúdo sumirem atrás de outras. */
+  .cabecalho-fixo{ position: sticky; top: 0; z-index: 20; background: var(--bg); }
+
+  .topbar{ background: var(--accent); color: #fff; padding: 16px 18px 14px; }
+  .topbar-linha{ display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .topbar-marca{ display: flex; align-items: center; gap: 9px; }
+  .topbar-logo{ width: 56px; height: 56px; flex-shrink: 0; }
+  .topbar h1{ font-size: 19px; font-weight: 600; color: #fff; }
+  .topbar .sub{ font-size: 12.5px; opacity: .78; margin-top: 4px; margin-left: 65px; }
+  .btn-add{ width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%; border: none; background: rgba(255,255,255,.18); color: #fff; font-size: 18px; line-height: 1; display: flex; align-items: center; justify-content: center; }
+  .btn-add:active{ background: rgba(255,255,255,.3); }
+  .btn-add svg{ width: 17px; height: 17px; }
+
+  /* Caixa única de filtro (referidos, fuso, país, região, status, datas, buscar) */
+  .filtros-box{ border: 1.4px solid var(--border); border-radius: var(--radius); padding: 12px; margin: 10px 14px 0; background: var(--surface); }
+  .filter-grid{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .filter-grid + .filter-grid{ margin-top: 8px; }
+  .chip.grid{ width: 100%; justify-content: center; text-align: center; padding: 9px 6px; font-size: 12px; white-space: normal; line-height: 1.25; }
+  .chip{ flex-shrink: 0; white-space: nowrap; background: var(--bg); border: 1.3px solid var(--border); border-radius: 999px; padding: 8px 14px; font-size: 13px; font-weight: 500; color: var(--ink-soft); display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .chip.active{ background: var(--accent-soft); border-color: var(--accent-2); color: var(--accent); }
+  .chip .n{ background: var(--accent); color: #fff; border-radius: 999px; font-size: 10.5px; padding: 1px 6px; font-weight: 600; }
+  .chip.buscar{ background: var(--accent); border-color: var(--accent); color: #fff; }
+  .chip.buscar.active-busca{ background: #8A6414; border-color: #8A6414; }
+  .aviso-busca-ativa{ font-size: 12px; color: #8A6414; background: #FBEBC9; border-radius: var(--radius-sm); padding: 8px 10px; margin-bottom: 10px; line-height: 1.4; }
+
+  .busca-row{ margin-top: 8px; }
+  .busca-row input{ width: 100%; padding: 10px 14px; border-radius: var(--radius-sm); border: 1.3px solid var(--border); background: var(--surface); font-size: 14px; }
+
+  .result-count{ padding: 8px 18px 4px; font-size: 12.5px; color: var(--ink-faint); font-weight: 500; }
+
+  .list{ padding: 6px 14px 40px; }
+  #cardsWrap{ display: flex; flex-direction: column; gap: 10px; }
+  .card{ background: var(--surface); border-radius: var(--radius); padding: 14px; box-shadow: var(--shadow); }
+  .card-header-row{ display: flex; align-items: center; gap: 10px; }
+  .card-header-row .nome{ flex: 1; min-width: 0; font-size: 15.5px; font-weight: 600; font-family: 'Space Grotesk', sans-serif; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card-header-actions{ display: flex; gap: 8px; flex-shrink: 0; }
+  .card .tel{ font-size: 13px; color: var(--ink-soft); margin-top: 4px; }
+  .filtro-badges-row{ display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+  .filtro-badge{ background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 3px 9px; font-size: 10.5px; font-weight: 600; }
+  .card .pills{ display: flex; gap: 5px; margin-top: 7px; flex-wrap: wrap; }
+  .pill{ font-size: 10.5px; font-weight: 600; padding: 3px 8px; border-radius: 999px; }
+  .icon-btn{ width: 36px; height: 36px; border-radius: 50%; border: 1.3px solid var(--border); background: var(--surface); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .icon-btn.whatsapp{ background: var(--whatsapp); border-color: var(--whatsapp); }
+  .icon-btn.info.active{ background: var(--accent-soft); border-color: var(--accent-2); color: var(--accent); }
+  .icon-btn svg{ width: 18px; height: 18px; }
+  .card-extra{ margin-top: 12px; padding-top: 12px; border-top: 1px solid #F0EEE6; }
+  .detail-grid{ display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 4px 14px; }
+  .detail-grid .detail-field{ padding: 7px 0; }
+  .duplicata-field{ background: var(--bg); border-radius: var(--radius-sm); padding: 10px 12px; margin: 8px 0; }
+  .input-nome-inline{ flex: 1; font-size: 15.5px; font-weight: 600; font-family: 'Space Grotesk', sans-serif; padding: 7px 9px; border: 1.3px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); }
+  .input-tel-inline{ width: 100%; margin-top: 8px; padding: 8px 10px; border: 1.3px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); font-size: 13px; }
+
+  .empty-state{ text-align: center; padding: 60px 24px; color: var(--ink-faint); }
+  .empty-state .big{ font-size: 40px; margin-bottom: 10px; }
+  .loading{ text-align: center; padding: 40px; color: var(--ink-faint); font-size: 14px; }
+
+  .sheet-backdrop{ position: fixed; inset: 0; background: rgba(17,20,21,.42); z-index: 40; display: none; }
+  .sheet-backdrop.open{ display: block; }
+  .sheet{ position: fixed; left: 0; right: 0; bottom: 0; z-index: 41; max-width: 520px; margin: 0 auto; background: var(--surface); border-radius: 20px 20px 0 0; max-height: 82vh; display: flex; flex-direction: column; transform: translateY(100%); transition: transform .22s ease; }
+  .sheet.open{ transform: translateY(0); }
+  .sheet-handle{ width: 36px; height: 4px; background: var(--border); border-radius: 99px; margin: 10px auto 4px; }
+  .sheet-header{ padding: 8px 20px 14px; border-bottom: 1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+  .sheet-header h3{ font-size: 16.5px; }
+  .sheet-header .close{ background: none; border: none; font-size: 20px; color: var(--ink-faint); padding: 4px; }
+  .sheet-body{ padding: 10px 20px 16px; overflow-y: auto; }
+  .sheet-footer{ padding: 12px 20px calc(16px + env(safe-area-inset-bottom)); border-top: 1px solid var(--border); display: flex; gap: 10px; }
+
+  .check-row{ display: flex; align-items: center; gap: 12px; padding: 10px 2px; border-bottom: 1px solid #F0EEE6; font-size: 14.5px; }
+  .check-row input[type=checkbox]{ width: 19px; height: 19px; accent-color: var(--accent); flex-shrink:0; }
+  .check-row label{ flex: 1; }
+  .check-row .count{ color: var(--ink-faint); font-size: 12px; }
+
+  .data-item{ display: flex; flex-direction: column; gap: 5px; padding: 6px 0; }
+  .data-item label{ font-size: 12.5px; color: var(--ink-soft); font-weight: 500; }
+  .data-item input[type=date]{ width: 100%; padding: 10px; border: 1.3px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); font-size: 14px; color: var(--ink); }
+  .busca-livre-row{ padding: 6px 0; }
+  .busca-livre-row input{ width: 100%; padding: 11px 14px; border-radius: var(--radius-sm); border: 1.3px solid var(--border); background: var(--bg); font-size: 14.5px; }
+
+  .btn{ border: none; border-radius: var(--radius-sm); padding: 12px 16px; font-weight: 600; font-size: 14px; flex: 1; text-align: center; }
+  .btn.primary{ background: var(--accent); color: #fff; }
+  .btn.ghost{ background: var(--accent-soft); color: var(--accent); }
+  .btn.danger{ background: var(--danger-soft); color: var(--danger); }
+  .btn[disabled]{ opacity: .55; }
+
+  .detail-field{ padding: 11px 0; border-bottom: 1px solid #F0EEE6; }
+  .detail-field .k{ font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-faint); font-weight: 600; margin-bottom: 3px; }
+  .detail-field .v{ font-size: 14.5px; color: var(--ink); }
+  .detail-field .v.empty{ color: var(--ink-faint); font-style: italic; }
+  .detail-field input, .detail-field select, .detail-field textarea{ width: 100%; padding: 9px 10px; border: 1.3px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); }
+  .detail-field textarea{ min-height: 70px; resize: vertical; }
+  .detail-actions{ display: flex; gap: 8px; padding: 14px 0 4px; }
+  .aviso-erro{ background: var(--danger-soft); color: var(--danger); font-size: 13px; padding: 10px 12px; border-radius: var(--radius-sm); margin-bottom: 10px; }
+
+  .toast{ position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 11px 18px; border-radius: 999px; font-size: 13.5px; z-index: 60; box-shadow: var(--shadow); opacity: 0; transition: opacity .2s; pointer-events: none; max-width: 85%; text-align:center; }
+
+  /* ---------- Relatório ---------- */
+  .relatorio-resumo{ text-align: center; padding: 6px 0 18px; }
+  .relatorio-total{ font-family: 'Space Grotesk', sans-serif; font-size: 38px; font-weight: 700; color: var(--accent); line-height: 1; }
+  .relatorio-total-label{ font-size: 12.5px; color: var(--ink-faint); margin-top: 4px; }
+  .relatorio-barras{ margin-top: 14px; display: flex; flex-direction: column; gap: 14px; }
+  .relatorio-linha{ border-left: 4px solid transparent; padding-left: 10px; }
+  .relatorio-linha-topo{ display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px; }
+  .relatorio-label{ font-size: 13.5px; font-weight: 600; color: var(--ink); }
+  .relatorio-valor{ font-size: 13px; font-weight: 600; color: var(--ink-soft); }
+  .relatorio-pct{ font-weight: 500; color: var(--ink-faint); font-size: 12px; }
+  .relatorio-barra-fundo{ background: var(--accent-soft); border-radius: 999px; height: 9px; overflow: hidden; }
+
+  /* Gráfico do relatório (barra/pizza) */
+  .grafico-controles{ margin-top: 16px; padding-top: 14px; border-top: 1px solid #F0EEE6; }
+  .grafico-toggle{ display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 500; color: var(--ink); }
+  .grafico-toggle input{ width: 18px; height: 18px; accent-color: var(--accent); }
+  .grafico-opcoes{ margin-top: 10px; display: flex; flex-direction: column; gap: 10px; }
+  .chip-toggle-group{ display: flex; gap: 8px; }
+  .chip-toggle{ flex: 1; padding: 8px; border-radius: var(--radius-sm); border: 1.3px solid var(--border); background: var(--bg); color: var(--ink-soft); font-size: 13px; font-weight: 500; }
+  .chip-toggle.active{ background: var(--accent); border-color: var(--accent); color: #fff; }
+  .grafico-area{ margin-top: 14px; }
+
+  .grafico-barras-wrap{ display: flex; align-items: flex-end; gap: 10px; height: 190px; overflow-x: auto; padding: 6px 2px 0; }
+  .grafico-barra-col{ display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; min-width: 44px; flex-shrink: 0; }
+  .grafico-barra-valor{ font-size: 11.5px; font-weight: 600; color: var(--ink); margin-bottom: 3px; }
+  .grafico-barra-corpo{ width: 26px; border-radius: 5px 5px 0 0; min-height: 4px; }
+  .grafico-barra-pct{ font-size: 10px; color: var(--ink-faint); margin-top: 4px; }
+  .grafico-barra-label{ font-size: 10px; color: var(--ink-soft); margin-top: 2px; max-width: 56px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .grafico-pizza-wrap{ display: flex; flex-direction: column; align-items: center; gap: 16px; }
+  .grafico-pizza{ width: 170px; height: 170px; border-radius: 50%; flex-shrink: 0; }
+  .grafico-legenda{ width: 100%; display: flex; flex-direction: column; gap: 7px; }
+  .grafico-legenda-item{ display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink); }
+  .grafico-legenda-cor{ width: 11px; height: 11px; border-radius: 3px; flex-shrink: 0; }
+  .grafico-legenda-label{ flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .grafico-legenda-valor{ color: var(--ink-faint); font-weight: 500; flex-shrink: 0; }
+
+  /* Seleção de valores específicos no relatório */
+  .relatorio-selecao-valores{ margin-top: 14px; padding-top: 14px; border-top: 1px solid #F0EEE6; }
+  .relatorio-valores-chips{ display: flex; flex-wrap: wrap; gap: 7px; margin-top: 8px; }
+  .chip-toggle-sm{ flex: 0 0 auto; padding: 6px 12px; font-size: 12px; }
+  .link-limpar{ display: inline-block; margin-top: 10px; font-size: 12px; color: var(--accent); text-decoration: underline; background: none; border: none; padding: 0; }
+
+  /* Gráfico de linha (evolução) */
+  .grafico-linha-wrap{ overflow-x: auto; padding: 4px 0; }
+
+  /* Manutenção */
+  .manutencao-lista{ display: flex; flex-direction: column; gap: 8px; }
+  .manutencao-item{ text-align: left; border: 1.3px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; background: var(--bg); }
+  .manutencao-item:disabled{ opacity: .5; }
+  .manutencao-item-rotulo{ font-weight: 600; font-size: 14px; color: var(--ink); font-family: 'Space Grotesk', sans-serif; }
+  .manutencao-item-desc{ font-size: 12px; color: var(--ink-faint); margin-top: 3px; }
+  .manutencao-resultado-titulo{ font-weight: 600; font-size: 14px; margin-bottom: 8px; font-family: 'Space Grotesk', sans-serif; }
+  .manutencao-resultado-texto{ white-space: pre-wrap; word-break: break-word; background: var(--bg); border-radius: var(--radius-sm); padding: 12px; font-size: 12.5px; font-family: inherit; color: var(--ink); max-height: 340px; overflow-y: auto; margin-bottom: 12px; }
+  .relatorio-barra-preenchida{ background: var(--accent); height: 100%; border-radius: 999px; transition: width .3s ease; }
+  .toast.show{ opacity: 1; }
+
+  @media (prefers-reduced-motion: reduce){ .sheet, .aba-btn{ transition: none; } }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="telefone-utils.js"></script>
+<script src="supabase-client.js"></script>
+<script src="supabase-api-shim.js"></script>
+<script>
+/* ============================================================
+ * CONFIGURAÇÃO
+ * ------------------------------------------------------------
+ * A conexão com os dados agora é feita pelo Supabase (ver
+ * supabase-client.js), não mais pelo Apps Script. As funções
+ * apiListar / apiCriar / apiDetalhe / etc. estão em
+ * supabase-api-shim.js, com o MESMO nome e formato de antes —
+ * o resto deste arquivo não precisou mudar.
+ * ============================================================ */
+
+/* Mesmo ID da agenda configurado no CONFIG.CALENDARIO.ID do Apps Script.
+   Usado só pra montar o link que abre essa agenda específica no Google
+   Agenda (não dá acesso a nada — é a mesma agenda que você já usa). */
+const CALENDARIO_ID = "2ecd8f0d52dac8f30b79ceeaf85e563568d25dbc50b1bd330f02aa4766aeccb6@group.calendar.google.com";
+const LINK_AGENDA = "https://calendar.google.com/calendar/u/0/r?cid=" + encodeURIComponent(CALENDARIO_ID);
+
+const ABA_CONTATOS = "CONTATOS";
+
+const CORES_STATUS_COMERCIAL = {
+  "PRIORIDADE": ["#FBE1D9","#A23B2E"], "FOLLOW UP": ["#DDEAFB","#1D5C9E"], "ÁUDIO/MSG": ["#EAE1F7","#5B3E9E"],
+  "AGENDADO": ["#FBEBC9","#8A6414"], "1x MANHÃ": ["#F6E9DC","#8A5A28"], "1x TARDE": ["#F6E9DC","#8A5A28"],
+  "1x NOITE": ["#F6E9DC","#8A5A28"], "NÃO": ["#EBEAE6","#63676C"], "MATRÍCULA": ["#DCEEE1","#1C6B3C"]
+};
+const CORES_STATUS_COMPORTAMENTAL = {
+  "NÃO INTERAGIU": ["#EBEAE6","#63676C"], "FUTURAMENTE": ["#DDEAFB","#1D5C9E"], "DI": ["#FBEBC9","#8A6414"],
+  "FECHAMENTO": ["#DCEEE1","#1C6B3C"], "DESLIGOU": ["#FBE1D9","#A23B2E"], "TÁ ESTUDANDO": ["#DCEDEA","#146356"],
+  "BOLO": ["#FBE1EC","#9E3866"]
+};
+const CORES_REFERIDOS = {
+  "VALIDADOS": ["#DCEEE1","#1C6B3C"], "INDICADOS": ["#DDEAFB","#1D5C9E"], "FRIO": ["#DDEEF4","#2B6E8A"]
+};
+
+/* Filtros do tipo checklist (painel único de filtro).
+   Ordem de exibição: Referidos, Fuso, País / Região, Status Comercial,
+   Status do Contato / Profissão */
+const CAMPOS_FILTRO = [
+  { chave: "REFERIDOS", rotulo: "Referido" },
+  { chave: "FUSO", rotulo: "Fuso" },
+  { chave: "PAIS", rotulo: "País" },
+  { chave: "REGIAO", rotulo: "Região" },
+  { chave: "STATUS_COMERCIAL", rotulo: "Status Comercial" },
+  { chave: "STATUS_COMPORTAMENTAL", rotulo: "Status do Contato" },
+  { chave: "PROFISSAO", rotulo: "Profissão" }
+];
+
+/* Filtros de data — usam calendário nativo, dentro do mesmo painel de filtro */
+const CAMPOS_FILTRO_DATA = [
+  { chave: "REGISTRO_STATUS_COMERCIAL", rotulo: "Data do Status Comercial" },
+  { chave: "REGISTRO_STATUS_COMPORTAMENTAL", rotulo: "Data do Status do Contato" },
+  { chave: "REGISTRO_TELEFONE", rotulo: "Data do Telefone" },
+  { chave: "AGENDAMENTO", rotulo: "Data do Agendamento" }
+];
+
+/* ============================================================
+ * ESTADO
+ * ============================================================ */
+const estado = {
+  contatos: [],
+  carregando: true,
+  busca: "",
+  buscaAberta: false,
+  filtros: {},
+  filtrosData: {},
+  opcoes: { statusComercial: [""], statusComportamental: [""], referidos: [""], profissao: [""] },
+  cardUI: {}, // linha -> { expandido, carregando, detalhe, editando, salvando, erroSalvar, agendamentoAberto, mostrarFormAgendamento, salvandoAgendamento, erroAgendamento, duplicatas }
+  salvandoNovo: false,
+  erroNovo: "",
+  mostrarFiltros: false,
+  naTelaRelatorio: false,
+  relatorioCampo: "STATUS_COMERCIAL",
+  naTelaManutencao: false,
+  manutencaoRodando: "",
+  manutencaoResultado: null,
+  relatorioDataInicio: "",
+  relatorioDataFim: ""
+};
+CAMPOS_FILTRO.forEach(f => estado.filtros[f.chave] = new Set());
+CAMPOS_FILTRO_DATA.forEach(f => estado.filtrosData[f.chave] = "");
+
+/* Estado de UI (expandido, edição, agendamento...) de cada card,
+   criado sob demanda na primeira vez que o card é tocado. */
+function obterCardUI(linha){
+  if(!estado.cardUI[linha]){
+    estado.cardUI[linha] = {
+      expandido: false,
+      carregando: false,
+      detalhe: null,
+      editando: false,
+      salvando: false,
+      erroSalvar: "",
+      agendamentoAberto: false,
+      mostrarFormAgendamento: false,
+      salvandoAgendamento: false,
+      erroAgendamento: "",
+      duplicatas: null,
+      carregandoDuplicatas: false
+    };
+  }
+  return estado.cardUI[linha];
+}
+
+function escapeAttr(v){
+  return String(v === null || v === undefined ? "" : v)
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function algumCarregando(){
+  return estado.carregando;
+}
+
+/* dd/MM/yyyy <-> yyyy-MM-dd (formato do <input type="date">) */
+function brParaIso(brData){
+  const m = String(brData || "").match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if(!m) return "";
+  return m[3] + "-" + m[2] + "-" + m[1];
+}
+function isoParaBr(isoData){
+  const partes = String(isoData || "").split("-");
+  if(partes.length !== 3) return "";
+  return partes[2] + "/" + partes[1] + "/" + partes[0];
+}
+
+/* "dd/MM/yyyy HH:mm" <-> "yyyy-MM-ddTHH:mm" (formato do <input type="datetime-local">) */
+function brDataHoraParaInputValue(brDataHora){
+  const m = String(brDataHora || "").match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2})/);
+  if(!m) return "";
+  return m[3] + "-" + m[2] + "-" + m[1] + "T" + m[4] + ":" + m[5];
+}
+
+/* Sugestão padrão pro campo de agendamento: daqui a 1h, arredondado
+   pros 15 minutos mais próximos. */
+function sugestaoInputAgendamento(){
+  const d = new Date(Date.now() + 60 * 60000);
+  d.setMinutes(Math.ceil(d.getMinutes() / 15) * 15, 0, 0);
+  const pad = (n) => String(n).padStart(2, "0");
+  return d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate()) + "T" + pad(d.getHours()) + ":" + pad(d.getMinutes());
+}
+
+/* ============================================================
+ * API
+ * ============================================================ */
+function reconstruirContatos(resposta){
+  const campos = resposta.campos;
+  const linhas = resposta.linhas;
+  const abaConstante = resposta.aba || ABA_CONTATOS;
+  const totalCampos = campos.length;
+  const totalLinhas = linhas.length;
+  const saida = new Array(totalLinhas);
+
+  // Loop simples (não forEach/map) — mais rápido em V8 pra arrays
+  // grandes como esse (dezenas de milhares de contatos), porque evita
+  // a sobrecarga de criar uma closure por item.
+  for(let i = 0; i < totalLinhas; i++){
+    const linha = linhas[i];
+    const obj = { aba: abaConstante };
+    for(let j = 0; j < totalCampos; j++){
+      obj[campos[j]] = linha[j];
+    }
+    saida[i] = obj;
+  }
+
+  return saida;
+}
+
+/* As funções apiListar, apiOpcoes, apiDetalhe, apiAtualizar,
+   apiCriar, apiExcluir, apiAgendar, apiCancelarAgendamento e
+   apiManutencao agora vêm de supabase-api-shim.js (carregado no
+   <head> deste arquivo), com o mesmo nome e formato de antes. */
+
+/* ============================================================
+ * HELPERS
+ * ============================================================ */
+function mostrarToast(msg){
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(() => t.classList.remove("show"), 2600);
+}
+
+function linkWhatsapp(telefone){
+  const digitos = String(telefone || "").replace(/\D/g, "");
+  return "https://wa.me/" + digitos;
+}
+
+function valorOuBranco(v){
+  return (v === undefined || v === null || v === "") ? "(em branco)" : String(v);
+}
+
+function iconInfo(){
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16.5"/><circle cx="12" cy="7.7" r="0.9" fill="currentColor" stroke="none"/></svg>';
+}
+function iconWhatsapp(){
+  return '<svg viewBox="0 0 32 32" fill="#fff"><path d="M16 3C9 3 3.3 8.7 3.3 15.7c0 2.4.7 4.7 1.9 6.7L3 29l6.8-2.1c1.9 1 4 1.6 6.2 1.6 7 0 12.7-5.7 12.7-12.7C28.7 8.7 23 3 16 3zm0 23.1c-2 0-3.9-.5-5.5-1.5l-.4-.2-4 1.2 1.2-3.9-.3-.4a10.3 10.3 0 0 1-1.6-5.6C5.4 9.8 10.1 5.1 16 5.1c5.9 0 10.6 4.7 10.6 10.6S21.9 26.1 16 26.1zm5.8-7.9c-.3-.2-1.9-.9-2.1-1-.3-.1-.5-.2-.7.2-.2.3-.8 1-1 1.2-.2.2-.4.2-.7.1-.3-.2-1.3-.5-2.5-1.5-.9-.8-1.5-1.8-1.7-2.1-.2-.3 0-.5.1-.7.1-.1.3-.4.5-.5.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5C13 12.7 12.4 11 12.1 10.4c-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.4s1.1 2.8 1.2 3c.1.2 2.1 3.2 5.1 4.5.7.3 1.3.5 1.7.6.7.2 1.4.2 1.9.1.6-.1 1.9-.8 2.1-1.5.3-.7.3-1.3.2-1.5-.1-.1-.3-.2-.6-.4z"/></svg>';
+}
+
+/* Todos os contatos carregados */
+function contatosCombinados(){
+  return estado.contatos;
+}
+
+/* Um contato passa nos filtros? (chaveExcluida = null pra checar tudo,
+   ou o nome de um campo pra ignorá-lo — usado pro filtro em cascata) */
+/* Campos usados pela busca livre — cobre tudo que já vem carregado
+   na lista (nome, telefone, indicação, status, fuso/país/região,
+   profissão, e as datas de registro) */
+const CAMPOS_BUSCA_TEXTO = ["NOME", "TELEFONE", "INDICADO_POR", "STATUS_COMERCIAL", "STATUS_COMPORTAMENTAL", "REFERIDOS", "FUSO", "PAIS", "REGIAO", "PROFISSAO", "REGISTRO_TELEFONE", "REGISTRO_STATUS_COMERCIAL", "REGISTRO_STATUS_COMPORTAMENTAL"];
+
+function passaNosFiltros(c, chaveExcluida){
+  for(const campo of CAMPOS_FILTRO){
+    if(campo.chave === chaveExcluida) continue;
+    const selecionados = estado.filtros[campo.chave];
+    if(selecionados.size === 0) continue;
+    if(!selecionados.has(valorOuBranco(c[campo.chave]))) return false;
+  }
+  for(const campo of CAMPOS_FILTRO_DATA){
+    if(campo.chave === chaveExcluida) continue;
+    const dataSelecionada = estado.filtrosData[campo.chave];
+    if(!dataSelecionada) continue;
+    const dataDoValor = String(c[campo.chave] || "").substring(0, 10); // "dd/MM/yyyy" mesmo se tiver hora depois
+    if(dataDoValor !== dataSelecionada) return false;
+  }
+  return true;
+}
+
+/* A Busca é independente dos Filtros: quando há um termo de busca
+   ativo, ela ignora TODOS os filtros (Referidos, Fuso, País, datas,
+   etc.) e procura em TODOS os contatos carregados — não só nos que
+   passariam pelos filtros ativos. */
+function algumFiltroAtivo(){
+  for(const campo of CAMPOS_FILTRO){
+    if(estado.filtros[campo.chave].size > 0) return true;
+  }
+  for(const campo of CAMPOS_FILTRO_DATA){
+    if(estado.filtrosData[campo.chave]) return true;
+  }
+  return false;
+}
+
+function contatosFiltradosFinal(){
+  const termoBusca = estado.busca.trim().toLowerCase();
+
+  if(termoBusca !== ""){
+    return contatosCombinados().filter(c => {
+      const alvo = CAMPOS_BUSCA_TEXTO.map(chave => c[chave] || "").join(" ").toLowerCase();
+      return alvo.includes(termoBusca);
+    });
+  }
+
+  // Atalho: sem filtro nenhum ativo (caso mais comum, tela recém-aberta),
+  // não vale a pena percorrer e testar cada contato um por um.
+  if(!algumFiltroAtivo()){
+    return contatosCombinados();
+  }
+
+  return contatosCombinados().filter(c => passaNosFiltros(c, null));
+}
+
+/* Opções disponíveis pra um filtro = valores desse campo entre os
+   contatos que já passam em TODOS OS OUTROS filtros ativos
+   (filtro em cascata / faceted).
+   PERFORMANCE: uma única passada com for-loop indexado, em vez de
+   .filter() + .forEach() (que percorreriam a base duas vezes e
+   ainda criariam um array intermediário) — roda toda vez que um
+   chip de filtro é clicado, então vale a pena manter isso enxuto
+   mesmo com dezenas de milhares de contatos carregados. */
+function opcoesDisponiveis(chave){
+  const lista = contatosCombinados();
+  const total = lista.length;
+  const contagem = {};
+
+  for(let i = 0; i < total; i++){
+    const c = lista[i];
+    if(!passaNosFiltros(c, chave)) continue;
+    const v = valorOuBranco(c[chave]);
+    contagem[v] = (contagem[v] || 0) + 1;
+  }
+
+  return contagem;
+}
+
+/* ============================================================
+ * BOOT — carrega contatos e opções em paralelo, uma vez só
+ * ------------------------------------------------------------
+ * PERFORMANCE: usa localStorage como cache local. Na abertura,
+ * se existir um cache de até 10 minutos, o app já mostra esses
+ * contatos IMEDIATAMENTE (sem esperar a rede) e, em paralelo,
+ * busca os dados atualizados no servidor — quando chegam,
+ * a tela é atualizada de novo sozinha. Isso elimina a sensação
+ * de "tela em branco carregando" em aberturas repetidas do app,
+ * mesmo com internet lenta.
+ * ============================================================ */
+const CACHE_LOCAL_CHAVE = "matriculas_cache_contatos_v1";
+const CACHE_LOCAL_MINUTOS = 20;
+
+function lerCacheLocal(){
+  try{
+    const bruto = localStorage.getItem(CACHE_LOCAL_CHAVE);
+    if(!bruto) return null;
+    const dados = JSON.parse(bruto);
+    const idadeMinutos = (Date.now() - dados.salvoEm) / 60000;
+    if(idadeMinutos > CACHE_LOCAL_MINUTOS) return null;
+    return dados;
+  }catch(err){
+    return null;
+  }
+}
+
+/* PERFORMANCE: a gravação no localStorage (serializar ~18 mil contatos
+   de novo em JSON) é adiada pro próximo ciclo do navegador (setTimeout 0),
+   pra não competir com a atualização da tela que acabou de chegar — a
+   lista aparece primeiro, e o cache é salvo logo em seguida, sem
+   travar a rolagem/renderização nesse instante. */
+function salvarCacheLocal(){
+  setTimeout(() => {
+    try{
+      localStorage.setItem(CACHE_LOCAL_CHAVE, JSON.stringify({
+        contatos: estado.contatos,
+        opcoes: estado.opcoes,
+        salvoEm: Date.now()
+      }));
+    }catch(err){
+      // Se o localStorage falhar (espaço cheio, modo privado, etc.),
+      // o app continua funcionando normalmente, só sem cache local.
+    }
+  }, 0);
+}
+
+async function iniciar(){
+  const cache = lerCacheLocal();
+
+  if(cache){
+    // Mostra o que já temos guardado imediatamente, sem esperar a rede.
+    estado.contatos = cache.contatos || [];
+    estado.opcoes = cache.opcoes || estado.opcoes;
+    estado.carregando = false;
+  }
+
+  renderTudo();
+
+  // Sempre busca dados atualizados em paralelo (mesmo tendo cache),
+  // pra nunca deixar o usuário travado num dado antigo por muito tempo.
+  carregarContatos();
+  carregarOpcoes();
+}
+
+async function carregarContatos(){
+  try{
+    estado.contatos = await apiListar(ABA_CONTATOS);
+    salvarCacheLocal();
+  }catch(err){
+    // Se já tínhamos cache local mostrado na tela, um erro de rede aqui
+    // não precisa assustar o usuário com um toast — ele já está vendo
+    // os últimos dados conhecidos. Só avisa se não havia nada na tela.
+    if(estado.contatos.length === 0){
+      mostrarToast("Erro ao carregar contatos: " + err.message);
+    }
+  }
+  estado.carregando = false;
+  renderTudo();
+}
+
+async function carregarOpcoes(){
+  try{
+    const opcoes = await apiOpcoes();
+    estado.opcoes = opcoes;
+    salvarCacheLocal();
+  }catch(err){
+    // Silencioso — se falhar, o app usa listas vazias (mostra só o valor
+    // atual do contato) em vez de travar a tela toda.
+  }
+}
+
+/* ============================================================
+ * RENDER — tudo numa tela só
+ * ============================================================ */
+const LOGO_SVG = `<svg class="topbar-logo" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Logo Matrículas">
+  <polygon points="30,3 36.06,21.66 55.68,21.66 39.81,33.19 45.87,51.84 30,40.31 14.13,51.84 20.19,33.19 4.32,21.66 23.94,21.66" fill="#fff"/>
+  <text x="30" y="32" text-anchor="middle" dy="0.35em" font-family="'Space Grotesk',sans-serif" font-weight="700" font-size="18" fill="#DD0897">M</text>
+</svg>`;
+
+function renderTudo(){
+  const app = document.getElementById("app");
+  const carregando = algumCarregando();
+
+  app.innerHTML = `
+    <div class="cabecalho-fixo">
+      <div class="topbar">
+        <div class="topbar-linha">
+          <div class="topbar-marca">
+            ${LOGO_SVG}
+            <h1>MATRÍCULAS</h1>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button class="btn-add" id="btnManutencao" aria-label="Manutenção">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 1-5.4 5.4L4 17l3 3 5.3-5.3a4 4 0 0 1 5.4-5.4l-3-3-3 3z"/></svg>
+            </button>
+            <button class="btn-add" id="btnAdicionarContato" aria-label="Adicionar contato">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </button>
+            <button class="btn-add" id="btnRelatorio" aria-label="Relatório">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="20" x2="6" y2="12"/><line x1="12" y1="20" x2="12" y2="6"/><line x1="18" y1="20" x2="18" y2="15"/></svg>
+            </button>
+            <button class="btn-add ${estado.mostrarFiltros ? "on" : ""}" id="btnFiltrar" aria-label="Filtro" style="${estado.mostrarFiltros ? "background:rgba(255,255,255,.32);" : ""}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="4,4 20,4 14,12.5 14,19 10,21 10,12.5"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="filtros-box" id="filtrosBox" style="display:${estado.mostrarFiltros ? "block" : "none"};">
+        <div class="aviso-busca-ativa" id="avisoBuscaAtiva" style="display:none;"></div>
+        <div class="filter-grid" id="filterGridLinha1"></div>
+        <div class="filter-grid" id="filterGridLinha2"></div>
+        <div class="filter-grid" id="filterGridLinha3"></div>
+        <div class="filter-grid" id="filterGridLinha4" style="grid-template-columns: repeat(4, 1fr);"></div>
+      </div>
+
+      <div class="result-count" style="display:none;"></div>
+    </div>
+
+    <div class="list" id="listaContatos"></div>
+
+    <div class="sheet-backdrop" id="backdrop"></div>
+    <div class="sheet" id="sheet"></div>
+  `;
+
+  document.getElementById("btnFiltrar").addEventListener("click", () => {
+    estado.mostrarFiltros = !estado.mostrarFiltros;
+    renderTudo();
+  });
+
+  document.getElementById("btnAdicionarContato").addEventListener("click", abrirNovoContato);
+  document.getElementById("btnRelatorio").addEventListener("click", abrirTelaRelatorio);
+  document.getElementById("btnManutencao").addEventListener("click", abrirTelaManutencao);
+
+  document.getElementById("backdrop").addEventListener("click", fecharSheet);
+
+  renderFiltrosChips();
+  renderListaEContagem();
+}
+
+/* Painel único de filtro, em 4 linhas:
+   1: Referidos, Fuso, País
+   2: Região, Status Comercial, Status do Contato
+   3: Profissão, Data do Status Comercial, Data do Status do Contato
+   4: Data do Telefone, Data do Agendamento, Buscar */
+function renderFiltrosChips(){
+  if(!estado.mostrarFiltros) return;
+
+  const buscaAtiva = estado.busca.trim() !== "";
+
+  const chipCheckbox = (f) => {
+    const n = estado.filtros[f.chave].size;
+    const ativo = n > 0;
+    return `<button class="chip grid ${ativo ? "active" : ""}" data-campo="${f.chave}">${f.rotulo}${ativo ? ` <span class="n">${n}</span>` : ""}</button>`;
+  };
+  const chipData = (f) => {
+    const ativo = !!estado.filtrosData[f.chave];
+    return `<button class="chip grid ${ativo ? "active" : ""}" data-campo-data="${f.chave}">${f.rotulo}</button>`;
+  };
+
+  const avisoBusca = document.getElementById("avisoBuscaAtiva");
+  if(avisoBusca){
+    avisoBusca.style.display = buscaAtiva ? "block" : "none";
+    avisoBusca.textContent = buscaAtiva ? `Busca ativa: mostrando resultados de "${estado.busca.trim()}" em todos os contatos. Os filtros abaixo estão pausados.` : "";
+  }
+
+  const linha1 = document.getElementById("filterGridLinha1");
+  linha1.innerHTML = [
+    chipCheckbox(CAMPOS_FILTRO.find(f => f.chave === "REFERIDOS")),
+    chipCheckbox(CAMPOS_FILTRO.find(f => f.chave === "FUSO")),
+    chipCheckbox(CAMPOS_FILTRO.find(f => f.chave === "PAIS"))
+  ].join("");
+
+  const linha2 = document.getElementById("filterGridLinha2");
+  linha2.innerHTML = [
+    chipCheckbox(CAMPOS_FILTRO.find(f => f.chave === "REGIAO")),
+    chipCheckbox(CAMPOS_FILTRO.find(f => f.chave === "STATUS_COMERCIAL")),
+    chipCheckbox(CAMPOS_FILTRO.find(f => f.chave === "STATUS_COMPORTAMENTAL"))
+  ].join("");
+
+  const linha3 = document.getElementById("filterGridLinha3");
+  linha3.innerHTML = [
+    chipCheckbox(CAMPOS_FILTRO.find(f => f.chave === "PROFISSAO")),
+    chipData(CAMPOS_FILTRO_DATA.find(f => f.chave === "REGISTRO_STATUS_COMERCIAL")),
+    chipData(CAMPOS_FILTRO_DATA.find(f => f.chave === "REGISTRO_STATUS_COMPORTAMENTAL"))
+  ].join("");
+
+  const linha4 = document.getElementById("filterGridLinha4");
+  const rotuloBuscar = buscaAtiva
+    ? `Buscando: "${estado.busca.trim().length > 12 ? estado.busca.trim().slice(0, 12) + "…" : estado.busca.trim()}"`
+    : "Buscar";
+  const temFiltroPraLimpar = algumFiltroAtivo();
+  linha4.innerHTML = [
+    chipData(CAMPOS_FILTRO_DATA.find(f => f.chave === "REGISTRO_TELEFONE")),
+    chipData(CAMPOS_FILTRO_DATA.find(f => f.chave === "AGENDAMENTO")),
+    `<button class="chip grid ${temFiltroPraLimpar ? "active" : ""}" id="btnLimparFiltro" ${temFiltroPraLimpar ? "" : "disabled"}>Limpar Filtro</button>`,
+    `<button class="chip grid buscar ${buscaAtiva ? "active-busca" : ""}" id="btnAbrirBusca">${rotuloBuscar}</button>`
+  ].join("");
+
+  document.querySelectorAll(".chip[data-campo]").forEach(chip => {
+    chip.addEventListener("click", () => abrirFiltro(chip.dataset.campo));
+  });
+  document.querySelectorAll(".chip[data-campo-data]").forEach(chip => {
+    chip.addEventListener("click", () => abrirFiltroData(chip.dataset.campoData));
+  });
+  document.getElementById("btnAbrirBusca").addEventListener("click", abrirBusca);
+  document.getElementById("btnLimparFiltro").addEventListener("click", limparTodosFiltros);
+}
+
+/* Limpa todos os filtros ativos (checklist + data) de uma vez, sem
+   mexer na Busca — e atualiza a lista na hora, sem filtro nenhum. */
+function limparTodosFiltros(){
+  CAMPOS_FILTRO.forEach(campo => estado.filtros[campo.chave].clear());
+  CAMPOS_FILTRO_DATA.forEach(campo => { estado.filtrosData[campo.chave] = ""; });
+  renderFiltrosChips();
+  renderListaEContagem();
+}
+
+/* ============================================================
+ * PERFORMANCE — renderização em lotes (paginação / scroll infinito)
+ * ------------------------------------------------------------
+ * Com a base passando de 15-18 mil contatos, criar TODOS os cards
+ * no DOM de uma vez (innerHTML gigante) é hoje o maior gargalo de
+ * velocidade do app — muito maior que rede ou backend. A solução:
+ * renderiza só um lote por vez (pequeno no início, maior depois) e,
+ * conforme o usuário
+ * rola a tela pra baixo, vai acrescentando mais lotes (em vez de
+ * recriar a lista inteira). Isso reduz o tempo de primeira exibição
+ * de segundos pra frações de segundo, mesmo com a base toda carregada
+ * na memória.
+ * ============================================================ */
+const TAMANHO_LOTE_INICIAL = 24; // primeiro lote pequeno: aparece na tela quase instantaneamente
+const TAMANHO_LOTE_SEGUINTE = 70; // lotes seguintes maiores: menos interrupções durante a rolagem
+let observerScrollInfinito = null;
+let listaFiltradaAtual = [];
+let quantidadeRenderizada = 0;
+
+function renderListaEContagem(){
+  const carregando = algumCarregando();
+  const totalCarregado = estado.contatos.length;
+
+  const contagem = document.querySelector(".result-count");
+  if(contagem) contagem.textContent = "";
+
+  const lista = document.getElementById("listaContatos");
+  if(!lista) return;
+
+  if(carregando && totalCarregado === 0){
+    lista.innerHTML = `<div class="loading">Carregando contatos da planilha...</div>`;
+    return;
+  }
+
+  listaFiltradaAtual = contatosFiltradosFinal();
+
+  if(listaFiltradaAtual.length === 0){
+    lista.innerHTML = `<div class="empty-state"><div class="big">🔍</div>Nenhum contato encontrado com esses filtros.</div>`;
+    return;
+  }
+
+  quantidadeRenderizada = 0;
+  lista.innerHTML = `<div id="cardsWrap"></div><div id="sentinelaScroll" style="height:1px;"></div>`;
+
+  // Delegação de eventos: UM listener no container, em vez de um por
+  // card — evita criar milhares de listeners individuais, que também
+  // pesa bastante com uma lista grande.
+  lista.removeEventListener("click", handleCliqueNaLista);
+  lista.addEventListener("click", handleCliqueNaLista);
+
+  renderizarProximoLote();
+  configurarScrollInfinito(lista);
+}
+
+function handleCliqueNaLista(e){
+  const card = e.target.closest(".card");
+  if(!card) return;
+
+  const linha = Number(card.dataset.linha);
+  const aba = card.dataset.aba;
+
+  if(e.target.closest(".icon-btn.info")){ alternarExpansaoCard(aba, linha); return; }
+  if(e.target.closest("[data-acao='editar']")){ ativarEdicaoCard(linha); return; }
+  if(e.target.closest("[data-acao='cancelar-edicao']")){ cancelarEdicaoCard(linha); return; }
+  if(e.target.closest("[data-acao='salvar']")){ salvarEdicaoCard(aba, linha); return; }
+  if(e.target.closest("[data-acao='excluir']")){ confirmarExclusaoCard(aba, linha); return; }
+  if(e.target.closest("[data-acao='abrir-agendamento']")){ abrirAgendamentoCard(linha); return; }
+  if(e.target.closest("[data-acao='reagendar']")){ reagendarCard(linha); return; }
+  if(e.target.closest("[data-acao='cancelar-form-agendamento']")){ cancelarFormAgendamentoCard(linha); return; }
+  if(e.target.closest("[data-acao='confirmar-agendamento']")){ confirmarAgendamentoCard(aba, linha); return; }
+  if(e.target.closest("[data-acao='cancelar-agendamento']")){ cancelarAgendamentoCard(aba, linha); return; }
+}
+
+/* ============================================================
+ * CARD DA LISTA — expansível inline (sem abrir tela nova)
+ * ------------------------------------------------------------
+ * Linha 1: nome + botão detalhes + botão whatsapp
+ * Linha 2: telefone
+ * (o resto fica oculto até clicar no botão de detalhes)
+ * ============================================================ */
+/* Mostra, abaixo do telefone (mesmo sem expandir o card), o valor de
+   cada campo que tem um filtro ativo no momento — só quando existe
+   pelo menos um filtro ligado e a Busca não está em uso (a Busca
+   ignora os filtros, então não faz sentido mostrar badge de filtro
+   junto com ela). */
+function badgesFiltroAtivo(c){
+  const buscaAtiva = estado.busca.trim() !== "";
+  if(buscaAtiva || !algumFiltroAtivo()) return "";
+
+  const pills = [];
+
+  CAMPOS_FILTRO.forEach(campo => {
+    if(estado.filtros[campo.chave].size === 0) return;
+    const valor = valorOuBranco(c[campo.chave]);
+    pills.push(`<span class="filtro-badge">${valor}</span>`);
+  });
+
+  CAMPOS_FILTRO_DATA.forEach(campo => {
+    if(!estado.filtrosData[campo.chave]) return;
+    const valor = String(c[campo.chave] || "").substring(0, 10);
+    pills.push(`<span class="filtro-badge">${valor || "—"}</span>`);
+  });
+
+  if(pills.length === 0) return "";
+  return `<div class="filtro-badges-row">${pills.join("")}</div>`;
+}
+
+/* Quando um contato é editado (status, referido, fuso, etc.) enquanto
+   existe um filtro ativo, ele pode deixar de pertencer a esse filtro.
+   Esta função remove o card da lista visível na hora, sem esperar um
+   novo carregamento — assim a lista sempre reflete só quem realmente
+   ainda bate com o filtro ligado. Retorna true se removeu (pra quem
+   chamou saber que não precisa mais re-renderizar o card normalmente). */
+function sincronizarCardComFiltroAtivo(linha){
+  const buscaAtiva = estado.busca.trim() !== "";
+  if(buscaAtiva || !algumFiltroAtivo()) return false;
+
+  const c = estado.contatos.find(x => x.linha === linha);
+  if(!c) return false;
+  if(passaNosFiltros(c, null)) return false;
+
+  const idxLista = listaFiltradaAtual.findIndex(x => x.linha === linha);
+  if(idxLista !== -1){
+    listaFiltradaAtual.splice(idxLista, 1);
+    if(idxLista < quantidadeRenderizada) quantidadeRenderizada--;
+  }
+
+  const el = document.getElementById("card-" + linha);
+  if(el) el.remove();
+
+  if(document.querySelectorAll("#cardsWrap .card").length === 0){
+    const lista = document.getElementById("listaContatos");
+    if(lista) lista.innerHTML = `<div class="empty-state"><div class="big">🔍</div>Nenhum contato encontrado com esses filtros.</div>`;
+  }
+
+  return true;
+}
+
+function cardHtml(c){
+  return `<div class="card" id="card-${c.linha}" data-linha="${c.linha}" data-aba="${c.aba}">${cardInnerHtml(c)}</div>`;
+}
+
+function cardInnerHtml(c){
+  const ui = obterCardUI(c.linha);
+
+  if(ui.editando){
+    return cardInnerHtmlEdicao(c, ui);
+  }
+
+  return `
+    <div class="card-header-row">
+      <div class="nome">${c.NOME || "(sem nome)"}</div>
+      <div class="card-header-actions">
+        <button class="icon-btn info ${ui.expandido ? "active" : ""}" aria-label="Mais informações">${iconInfo()}</button>
+        <a class="icon-btn whatsapp" href="${linkWhatsapp(c.TELEFONE)}" target="_blank" rel="noopener" aria-label="WhatsApp">${iconWhatsapp()}</a>
+      </div>
+    </div>
+    <div class="tel">${c.TELEFONE || "—"}</div>
+    ${badgesFiltroAtivo(c)}
+    <div class="card-extra" id="cardExtra-${c.linha}" style="display:${ui.expandido ? "block" : "none"};">
+      ${ui.expandido ? cardExtraConteudo(c, ui) : ""}
+    </div>
+  `;
+}
+
+function campoDetalheLinha(rotulo, valor, carregando){
+  if(carregando){
+    return `<div class="detail-field"><div class="k">${rotulo}</div><div class="v empty">Carregando...</div></div>`;
+  }
+  const v = (valor === undefined || valor === null || valor === "") ? "" : String(valor);
+  return `<div class="detail-field"><div class="k">${rotulo}</div><div class="v ${v === "" ? "empty" : ""}">${v === "" ? "Não informado" : v}</div></div>`;
+}
+
+function renderDuplicatasCard(ui){
+  if(ui.carregandoDuplicatas){
+    return `<div class="detail-field duplicata-field"><div class="v empty">Carregando duplicados...</div></div>`;
+  }
+  if(!ui.duplicatas || ui.duplicatas.length === 0) return "";
+  return ui.duplicatas.map(d => `
+    <div class="detail-field duplicata-field">
+      <div class="k">Indicado por (duplicado)</div>
+      <div class="v ${!d.INDICADO_POR ? "empty" : ""}">${d.INDICADO_POR || "Não informado"}</div>
+      <div class="k" style="margin-top:8px;">Observação do Indicado por (duplicado)</div>
+      <div class="v ${!d.OBSERVACAO_INDICADO ? "empty" : ""}">${d.OBSERVACAO_INDICADO || "Não informado"}</div>
+    </div>
+  `).join("");
+}
+
+function cardExtraConteudo(c, ui){
+  if(ui.agendamentoAberto){
+    return cardAgendamentoWidget(c, ui);
+  }
+
+  return `
+    ${campoDetalheLinha("Observação do Contato", c.OBSERVACAO, false)}
+    ${campoDetalheLinha("Indicado por", c.INDICADO_POR, false)}
+    ${campoDetalheLinha("Observação do Indicado por", c.OBSERVACAO_INDICADO, false)}
+    ${renderDuplicatasCard(ui)}
+    <div class="detail-grid">
+      ${campoDetalheLinha("Referido", c.REFERIDOS, false)}
+      ${campoDetalheLinha("Fuso", c.FUSO, false)}
+      ${campoDetalheLinha("País", c.PAIS, false)}
+      ${campoDetalheLinha("Região", c.REGIAO, false)}
+    </div>
+    <div class="detail-grid">
+      ${campoDetalheLinha("Status Comercial", c.STATUS_COMERCIAL, false)}
+      ${campoDetalheLinha("Status do Contato", c.STATUS_COMPORTAMENTAL, false)}
+      ${campoDetalheLinha("Profissão", c.PROFISSAO, false)}
+    </div>
+    <div class="detail-grid">
+      ${campoDetalheLinha("Data do Status Comercial", c.REGISTRO_STATUS_COMERCIAL, false)}
+      ${campoDetalheLinha("Data do Status do Contato", c.REGISTRO_STATUS_COMPORTAMENTAL, false)}
+    </div>
+    <div class="detail-grid">
+      ${campoDetalheLinha("Data do Telefone", c.REGISTRO_TELEFONE, false)}
+      ${campoDetalheLinha("Data do Agendamento", c.AGENDAMENTO, false)}
+    </div>
+    <div class="detail-actions">
+      <button class="btn danger" data-acao="excluir">Excluir</button>
+      <button class="btn ghost" data-acao="editar">Editar</button>
+      <button class="btn ghost" data-acao="abrir-agendamento">Agendamento</button>
+    </div>
+  `;
+}
+
+function cardInnerHtmlEdicao(c, ui){
+  const d = c;
+
+  return `
+    <div class="card-header-row">
+      <input type="text" class="input-nome-inline" data-campo="NOME" value="${escapeAttr(d.NOME)}" placeholder="Nome">
+    </div>
+    <input type="text" class="input-tel-inline" data-campo="TELEFONE" value="${escapeAttr(d.TELEFONE)}" placeholder="Telefone">
+    <div class="card-extra" style="display:block;">
+      ${ui.erroSalvar ? `<div class="aviso-erro">${ui.erroSalvar}</div>` : ""}
+      <div class="detail-field"><div class="k">Observação do Contato</div><textarea data-campo="OBSERVACAO">${d.OBSERVACAO || ""}</textarea></div>
+      <div class="detail-field"><div class="k">Indicado por</div><input type="text" data-campo="INDICADO_POR" value="${escapeAttr(d.INDICADO_POR)}"></div>
+      <div class="detail-field"><div class="k">Observação do Indicado por</div><textarea data-campo="OBSERVACAO_INDICADO">${d.OBSERVACAO_INDICADO || ""}</textarea></div>
+      <div class="detail-field"><div class="k">Referido</div>
+        <select data-campo="REFERIDOS">${(estado.opcoes.referidos || [""]).map(o => `<option value="${o}" ${o === (c.REFERIDOS || "") ? "selected" : ""}>${o === "" ? "(em branco)" : o}</option>`).join("")}</select>
+      </div>
+      <div class="detail-field"><div class="k">Status Comercial</div>
+        <select data-campo="STATUS_COMERCIAL">${(estado.opcoes.statusComercial || [""]).map(o => `<option value="${o}" ${o === (c.STATUS_COMERCIAL || "") ? "selected" : ""}>${o === "" ? "(em branco)" : o}</option>`).join("")}</select>
+      </div>
+      <div class="detail-field"><div class="k">Status do Contato</div>
+        <select data-campo="STATUS_COMPORTAMENTAL">${(estado.opcoes.statusComportamental || [""]).map(o => `<option value="${o}" ${o === (c.STATUS_COMPORTAMENTAL || "") ? "selected" : ""}>${o === "" ? "(em branco)" : o}</option>`).join("")}</select>
+      </div>
+      <div class="detail-field"><div class="k">Profissão</div>
+        <input type="text" data-campo="PROFISSAO" list="listaProfissoes-${c.linha}" value="${escapeAttr(c.PROFISSAO)}" placeholder="Digite ou escolha uma opção existente">
+        <datalist id="listaProfissoes-${c.linha}">
+          ${(estado.opcoes.profissao || []).filter(o => o !== "").map(o => `<option value="${escapeAttr(o)}"></option>`).join("")}
+        </datalist>
+      </div>
+      <div class="detail-actions">
+        <button class="btn ghost" data-acao="cancelar-edicao" ${ui.salvando ? "disabled" : ""}>Cancelar</button>
+        <button class="btn primary" data-acao="salvar" ${ui.salvando ? "disabled" : ""}>${ui.salvando ? "Salvando..." : "Salvar alterações"}</button>
+      </div>
+    </div>
+  `;
+}
+
+function cardAgendamentoWidget(c, ui){
+  const agendamentoAtual = c.AGENDAMENTO;
+  const temAgendamento = !!agendamentoAtual;
+
+  if(ui.mostrarFormAgendamento){
+    const valorPadrao = temAgendamento ? brDataHoraParaInputValue(agendamentoAtual) : sugestaoInputAgendamento();
+    return `
+      ${ui.erroAgendamento ? `<div class="aviso-erro">${ui.erroAgendamento}</div>` : ""}
+      <div class="detail-field">
+        <div class="k">Nova data e hora</div>
+        <input type="datetime-local" data-agenda-input value="${valorPadrao}">
+      </div>
+      <div class="detail-actions">
+        <button class="btn ghost" data-acao="cancelar-form-agendamento" ${ui.salvandoAgendamento ? "disabled" : ""}>${temAgendamento ? "Voltar" : "Cancelar"}</button>
+        <button class="btn primary" data-acao="confirmar-agendamento" ${ui.salvandoAgendamento ? "disabled" : ""}>${ui.salvandoAgendamento ? "Salvando..." : "Confirmar"}</button>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="detail-field">
+      <div class="k">Status</div>
+      <div class="v">Agendado para <b>${agendamentoAtual}</b></div>
+    </div>
+    <div class="detail-actions">
+      <button class="btn ghost" data-acao="reagendar">Reagendar</button>
+      <button class="btn danger" data-acao="cancelar-agendamento" ${ui.salvandoAgendamento ? "disabled" : ""}>${ui.salvandoAgendamento ? "Cancelando..." : "Cancelar agendamento"}</button>
+    </div>
+  `;
+}
+
+/* Re-renderiza só a região expandida de um card (não o card inteiro) */
+function renderCardExtra(linha){
+  const c = estado.contatos.find(x => x.linha === linha);
+  const ui = obterCardUI(linha);
+  const extra = document.getElementById("cardExtra-" + linha);
+  if(!c || !extra) return;
+
+  extra.style.display = ui.expandido ? "block" : "none";
+  if(!ui.expandido) return;
+
+  extra.innerHTML = cardExtraConteudo(c, ui);
+}
+
+/* Re-renderiza o card inteiro (usado ao entrar/sair do modo edição,
+   já que nome/telefone no topo também viram campos editáveis) */
+function atualizarCardCompleto(linha){
+  const el = document.getElementById("card-" + linha);
+  const c = estado.contatos.find(x => x.linha === linha);
+  if(!el || !c) return;
+  el.innerHTML = cardInnerHtml(c);
+}
+
+async function alternarExpansaoCard(aba, linha){
+  const ui = obterCardUI(linha);
+  ui.expandido = !ui.expandido;
+
+  const extra = document.getElementById("cardExtra-" + linha);
+  const btnInfo = document.querySelector(`#card-${linha} .icon-btn.info`);
+  if(btnInfo) btnInfo.classList.toggle("active", ui.expandido);
+  if(!extra) return;
+
+  if(!ui.expandido){
+    extra.style.display = "none";
+    return;
+  }
+
+  // PERFORMANCE: Observação do Contato/Indicado por já vêm no
+  // carregamento inicial (junto com todo o resto), então expandir um
+  // card é 100% local — não faz nenhuma chamada de rede, aparece
+  // instantaneamente, sem "Carregando...".
+  extra.style.display = "block";
+  renderCardExtra(linha);
+  carregarDuplicatasDoCard(linha);
+}
+
+/* Contatos com o mesmo telefone (já vem formatado de forma canônica
+   pelo backend, então comparar a string direto é confiável) */
+function contatosComMesmoTelefone(c){
+  const tel = String(c.TELEFONE || "").trim();
+  if(!tel) return [];
+  return estado.contatos.filter(x => x.linha !== c.linha && String(x.TELEFONE || "").trim() === tel);
+}
+
+/* PERFORMANCE: INDICADO_POR e OBSERVACAO_INDICADO de cada duplicado já
+   vêm no carregamento inicial (resumo), então não precisa mais buscar
+   o "detalhe" de cada duplicado na rede — é só ler direto de
+   estado.contatos, instantâneo. */
+function carregarDuplicatasDoCard(linha){
+  const ui = obterCardUI(linha);
+  const c = estado.contatos.find(x => x.linha === linha);
+  if(!c) return;
+
+  const outros = contatosComMesmoTelefone(c);
+  ui.duplicatas = outros.map(o => ({ INDICADO_POR: o.INDICADO_POR, OBSERVACAO_INDICADO: o.OBSERVACAO_INDICADO }));
+  ui.carregandoDuplicatas = false;
+  renderCardExtra(linha);
+}
+
+function ativarEdicaoCard(linha){
+  const ui = obterCardUI(linha);
+  ui.editando = true;
+  ui.erroSalvar = "";
+  atualizarCardCompleto(linha);
+}
+
+function cancelarEdicaoCard(linha){
+  const ui = obterCardUI(linha);
+  ui.editando = false;
+  ui.erroSalvar = "";
+  atualizarCardCompleto(linha);
+}
+
+async function salvarEdicaoCard(aba, linha){
+  const ui = obterCardUI(linha);
+  if(ui.salvando) return;
+
+  const el = document.getElementById("card-" + linha);
+  const dados = {};
+  el.querySelectorAll("[data-campo]").forEach(campo => { dados[campo.dataset.campo] = campo.value; });
+
+  ui.salvando = true;
+  ui.erroSalvar = "";
+  atualizarCardCompleto(linha);
+
+  try{
+    await apiAtualizar(aba, linha, dados);
+
+    const idx = estado.contatos.findIndex(x => x.linha === linha);
+    if(idx !== -1) Object.assign(estado.contatos[idx], dados);
+    salvarCacheLocal();
+
+    ui.editando = false;
+    ui.salvando = false;
+    if(!sincronizarCardComFiltroAtivo(linha)){
+      atualizarCardCompleto(linha);
+    }
+    mostrarToast("Contato atualizado!");
+  }catch(err){
+    ui.salvando = false;
+    ui.erroSalvar = "Não foi possível salvar: " + err.message;
+    atualizarCardCompleto(linha);
+  }
+}
+
+function confirmarExclusaoCard(aba, linha){
+  const c = estado.contatos.find(x => x.linha === linha);
+  if(!c) return;
+  if(!confirm(`Excluir o contato "${c.NOME}"? Essa ação não pode ser desfeita.`)) return;
+  excluirContatoCard(aba, linha);
+}
+
+async function excluirContatoCard(aba, linha){
+  try{
+    mostrarToast("Excluindo...");
+    await apiExcluir(aba, linha);
+    estado.contatos = estado.contatos.filter(x => x.linha !== linha);
+    delete estado.cardUI[linha];
+    salvarCacheLocal();
+    const el = document.getElementById("card-" + linha);
+    if(el) el.remove();
+    mostrarToast("Contato excluído.");
+  }catch(err){
+    mostrarToast("Erro ao excluir: " + err.message);
+  }
+}
+
+/* ---- Agendamento inline (dentro do próprio card) ---- */
+
+function abrirAgendamentoCard(linha){
+  const ui = obterCardUI(linha);
+
+  if(ui.agendamentoAberto){
+    ui.agendamentoAberto = false;
+    ui.mostrarFormAgendamento = false;
+    ui.erroAgendamento = "";
+    renderCardExtra(linha);
+    return;
+  }
+
+  const c = estado.contatos.find(x => x.linha === linha);
+  const temAgendamento = !!(c && c.AGENDAMENTO);
+
+  ui.agendamentoAberto = true;
+  ui.mostrarFormAgendamento = !temAgendamento;
+  ui.erroAgendamento = "";
+  renderCardExtra(linha);
+}
+
+function reagendarCard(linha){
+  const ui = obterCardUI(linha);
+  ui.mostrarFormAgendamento = true;
+  ui.erroAgendamento = "";
+  renderCardExtra(linha);
+}
+
+function cancelarFormAgendamentoCard(linha){
+  const ui = obterCardUI(linha);
+  const c = estado.contatos.find(x => x.linha === linha);
+  const temAgendamento = !!(c && c.AGENDAMENTO);
+
+  if(temAgendamento){
+    ui.mostrarFormAgendamento = false;
+    ui.erroAgendamento = "";
+    renderCardExtra(linha);
+  } else {
+    ui.agendamentoAberto = false;
+    ui.mostrarFormAgendamento = false;
+    ui.erroAgendamento = "";
+    renderCardExtra(linha);
+  }
+}
+
+async function confirmarAgendamentoCard(aba, linha){
+  const ui = obterCardUI(linha);
+  if(ui.salvandoAgendamento) return;
+
+  const el = document.getElementById("card-" + linha);
+  const input = el.querySelector("[data-agenda-input]");
+  const valor = input.value;
+
+  if(!valor){
+    ui.erroAgendamento = "Escolha uma data e hora.";
+    renderCardExtra(linha);
+    return;
+  }
+
+  ui.salvandoAgendamento = true;
+  ui.erroAgendamento = "";
+  renderCardExtra(linha);
+
+  try{
+    const resultado = await apiAgendar(aba, linha, valor);
+
+    const idx = estado.contatos.findIndex(x => x.linha === linha);
+    if(idx !== -1){
+      estado.contatos[idx].STATUS_COMERCIAL = "AGENDADO";
+      estado.contatos[idx].AGENDAMENTO = resultado.agendamento.dataHora;
+    }
+    salvarCacheLocal();
+
+    ui.mostrarFormAgendamento = false;
+    ui.salvandoAgendamento = false;
+    ui.agendamentoAberto = false;
+    if(!sincronizarCardComFiltroAtivo(linha)){
+      atualizarCardCompleto(linha);
+    }
+    mostrarToast("Agendamento confirmado!");
+  }catch(err){
+    ui.salvandoAgendamento = false;
+    ui.erroAgendamento = "Não foi possível agendar: " + err.message;
+    renderCardExtra(linha);
+  }
+}
+
+async function cancelarAgendamentoCard(aba, linha){
+  if(!confirm("Cancelar este agendamento? O evento será removido da agenda.")) return;
+
+  const ui = obterCardUI(linha);
+  ui.salvandoAgendamento = true;
+  renderCardExtra(linha);
+
+  try{
+    await apiCancelarAgendamento(aba, linha);
+
+    const idx = estado.contatos.findIndex(x => x.linha === linha);
+    if(idx !== -1) estado.contatos[idx].AGENDAMENTO = "";
+    salvarCacheLocal();
+
+    ui.salvandoAgendamento = false;
+    ui.agendamentoAberto = false;
+    if(!sincronizarCardComFiltroAtivo(linha)){
+      atualizarCardCompleto(linha);
+    }
+    mostrarToast("Agendamento cancelado.");
+  }catch(err){
+    ui.salvandoAgendamento = false;
+    mostrarToast("Erro ao cancelar: " + err.message);
+    renderCardExtra(linha);
+  }
+}
+
+function renderizarProximoLote(){
+  const wrap = document.getElementById("cardsWrap");
+  if(!wrap) return;
+
+  const tamanho = quantidadeRenderizada === 0 ? TAMANHO_LOTE_INICIAL : TAMANHO_LOTE_SEGUINTE;
+  const proximos = listaFiltradaAtual.slice(quantidadeRenderizada, quantidadeRenderizada + tamanho);
+  if(proximos.length === 0) return;
+
+  wrap.insertAdjacentHTML("beforeend", proximos.map(cardHtml).join(""));
+  quantidadeRenderizada += proximos.length;
+}
+
+function configurarScrollInfinito(lista){
+  if(observerScrollInfinito) observerScrollInfinito.disconnect();
+
+  const sentinela = document.getElementById("sentinelaScroll");
+  if(!sentinela) return;
+
+  observerScrollInfinito = new IntersectionObserver((entradas) => {
+    entradas.forEach(entrada => {
+      if(entrada.isIntersecting && quantidadeRenderizada < listaFiltradaAtual.length){
+        renderizarProximoLote();
+      }
+    });
+  }, { root: null, rootMargin: "800px" }); // carrega um pouco antes de chegar no fim, pra rolagem ficar suave
+
+  observerScrollInfinito.observe(sentinela);
+}
+
+/* ============================================================
+ * SHEET — filtro em cascata
+ * ============================================================ */
+function ordenarValoresFiltro(chave, valores){
+  if(chave === "FUSO"){
+    // Ordem numérica: ...-2, -1, 0, +1, +2... com "(em branco)" sempre por último
+    return valores.slice().sort((a, b) => {
+      if(a === "(em branco)") return 1;
+      if(b === "(em branco)") return -1;
+      return parseFloat(a) - parseFloat(b);
+    });
+  }
+  return valores.slice().sort((a, b) => a.localeCompare(b, "pt-BR"));
+}
+
+function abrirFiltro(chave){
+  const campo = CAMPOS_FILTRO.find(f => f.chave === chave);
+  const contagens = opcoesDisponiveis(chave);
+  const valores = ordenarValoresFiltro(chave, Object.keys(contagens));
+  const selecionadosAtuais = new Set(estado.filtros[chave]);
+
+  const sheet = document.getElementById("sheet");
+  sheet.innerHTML = `
+    <div class="sheet-handle"></div>
+    <div class="sheet-header"><h3>${campo.rotulo}</h3><button class="close" id="fecharSheet">✕</button></div>
+    <div class="sheet-body">
+      ${valores.length === 0 ? `<p style="color:var(--ink-faint);font-size:14px;">Nenhuma opção disponível com os filtros atuais.</p>` : valores.map((v,i) => `
+        <div class="check-row">
+          <input type="checkbox" id="chk_${chave}_${i}" ${selecionadosAtuais.has(v) ? "checked" : ""} data-valor="${encodeURIComponent(v)}">
+          <label for="chk_${chave}_${i}">${v}</label>
+          <span class="count">${contagens[v]}</span>
+        </div>
+      `).join("")}
+    </div>
+    <div class="sheet-footer">
+      <button class="btn ghost" id="limparFiltro">Limpar</button>
+      <button class="btn primary" id="aplicarFiltro">Aplicar</button>
+    </div>
+  `;
+
+  document.getElementById("fecharSheet").addEventListener("click", fecharSheet);
+  document.getElementById("limparFiltro").addEventListener("click", () => {
+    sheet.querySelectorAll('input[type=checkbox]').forEach(chk => chk.checked = false);
+  });
+  document.getElementById("aplicarFiltro").addEventListener("click", () => {
+    const novoSet = new Set();
+    sheet.querySelectorAll('input[type=checkbox]:checked').forEach(chk => novoSet.add(decodeURIComponent(chk.dataset.valor)));
+    estado.filtros[chave] = novoSet;
+    fecharSheet();
+    renderFiltrosChips();
+    renderListaEContagem();
+  });
+
+  abrirSheetElemento();
+}
+
+/* Sheet de filtro de data — calendário nativo único por campo */
+function abrirFiltroData(chave){
+  const campo = CAMPOS_FILTRO_DATA.find(f => f.chave === chave);
+  const valorIso = brParaIso(estado.filtrosData[chave]);
+
+  const sheet = document.getElementById("sheet");
+  sheet.innerHTML = `
+    <div class="sheet-handle"></div>
+    <div class="sheet-header"><h3>${campo.rotulo}</h3><button class="close" id="fecharSheet">✕</button></div>
+    <div class="sheet-body">
+      <div class="data-item">
+        <label>Escolha a data</label>
+        <input type="date" id="inputFiltroData" value="${valorIso}">
+      </div>
+    </div>
+    <div class="sheet-footer">
+      <button class="btn ghost" id="limparFiltroData">Limpar</button>
+      <button class="btn primary" id="aplicarFiltroData">Aplicar</button>
+    </div>
+  `;
+
+  document.getElementById("fecharSheet").addEventListener("click", fecharSheet);
+  document.getElementById("limparFiltroData").addEventListener("click", () => {
+    document.getElementById("inputFiltroData").value = "";
+  });
+  document.getElementById("aplicarFiltroData").addEventListener("click", () => {
+    const valor = document.getElementById("inputFiltroData").value;
+    estado.filtrosData[chave] = isoParaBr(valor);
+    fecharSheet();
+    renderFiltrosChips();
+    renderListaEContagem();
+  });
+
+  abrirSheetElemento();
+}
+
+/* Sheet de busca livre — nome, telefone, indicação, etc. */
+function abrirBusca(){
+  const sheet = document.getElementById("sheet");
+  sheet.innerHTML = `
+    <div class="sheet-handle"></div>
+    <div class="sheet-header"><h3>Buscar</h3><button class="close" id="fecharSheet">✕</button></div>
+    <div class="sheet-body">
+      <div class="busca-livre-row">
+        <input type="text" id="inputBuscaLivre" placeholder="Nome, telefone, indicação..." value="${estado.busca}">
+      </div>
+    </div>
+    <div class="sheet-footer">
+      <button class="btn ghost" id="limparBusca">Limpar</button>
+      <button class="btn primary" id="aplicarBusca">Aplicar</button>
+    </div>
+  `;
+
+  document.getElementById("fecharSheet").addEventListener("click", fecharSheet);
+  document.getElementById("limparBusca").addEventListener("click", () => {
+    document.getElementById("inputBuscaLivre").value = "";
+  });
+  document.getElementById("aplicarBusca").addEventListener("click", () => {
+    estado.busca = document.getElementById("inputBuscaLivre").value;
+    fecharSheet();
+    renderFiltrosChips();
+    renderListaEContagem();
+  });
+
+  const input = document.getElementById("inputBuscaLivre");
+  input.focus();
+  input.addEventListener("keydown", (e) => {
+    if(e.key === "Enter") document.getElementById("aplicarBusca").click();
+  });
+
+  abrirSheetElemento();
+}
+
+function abrirSheetElemento(){
+  document.getElementById("backdrop").classList.add("open");
+  document.getElementById("sheet").classList.add("open");
+}
+function fecharSheet(){
+  document.getElementById("backdrop").classList.remove("open");
+  document.getElementById("sheet").classList.remove("open");
+  estado.naTelaRelatorio = false;
+}
+
+/* ============================================================
+ * SHEET — detalhe / edição / exclusão
+ * ============================================================ */
+
+/* ============================================================
+ * SHEET — Relatório (botão 📊)
+ * ============================================================ */
+function abrirTelaRelatorio(){
+  estado.naTelaRelatorio = true;
+  renderTelaRelatorio();
+  abrirSheetElemento();
+}
+
+function fecharTelaRelatorio(){
+  estado.naTelaRelatorio = false;
+  fecharSheet();
+}
+
+/* ============================================================
+ * SHEET — Manutenção (botão 🔧, à esquerda do +)
+ * ------------------------------------------------------------
+ * Lista as mesmas funções seguras disponíveis no menu "CRM
+ * Matrículas" da planilha, pra rodar sem precisar abrir o Google
+ * Sheets. O backend usa versões dessas funções que devolvem texto
+ * em vez de abrir uma caixinha de diálogo (que só existe dentro do
+ * editor da planilha).
+ * ============================================================ */
+const LISTA_FUNCOES_MANUTENCAO = [
+  { chave: "processarPendentes", rotulo: "Processar pendentes agora", descricao: "Formata telefones e recalcula fuso/país/região de linhas que entraram por fora do app." },
+  { chave: "atualizarDuplicados", rotulo: "Recalcular duplicados", descricao: "Repinta em vermelho/amarelo os telefones duplicados na planilha." },
+  { chave: "reordenarDuplicados", rotulo: "Reagrupar linhas duplicadas", descricao: "Junta as linhas com o mesmo telefone, uma embaixo da outra." },
+  { chave: "sincronizarAgenda", rotulo: "Sincronizar agendamentos com a Agenda", descricao: "Confere se algum agendamento foi apagado direto no Google Agenda." },
+  { chave: "corrigirAgendamentosAntigos", rotulo: "Corrigir exibição de agendamentos antigos", descricao: "Conserta agendamentos antigos que perderam a hora na exibição." },
+  { chave: "verificarColunas", rotulo: "Verificar colunas", descricao: "Confere se todas as colunas que o sistema precisa existem na planilha." },
+  { chave: "verificarAbas", rotulo: "Verificar nomes das abas", descricao: "Confere se o nome da aba bate exatamente com o que o código espera." },
+  { chave: "diagnosticoCache", rotulo: "Diagnóstico de cache (performance)", descricao: "Mostra se o cache que acelera o carregamento está ativo." }
+];
+
+function abrirTelaManutencao(){
+  estado.naTelaManutencao = true;
+  estado.manutencaoRodando = "";
+  estado.manutencaoResultado = null;
+  renderTelaManutencao();
+  abrirSheetElemento();
+}
+
+function fecharTelaManutencao(){
+  estado.naTelaManutencao = false;
+  fecharSheet();
+}
+
+function renderTelaManutencao(){
+  const sheet = document.getElementById("sheet");
+
+  sheet.innerHTML = `
+    <div class="sheet-handle"></div>
+    <div class="sheet-header"><h3>Manutenção</h3><button class="close" id="fecharSheet">✕</button></div>
+    <div class="sheet-body">
+      <p style="color:var(--ink-faint);font-size:12.5px;margin-bottom:14px;">
+        As mesmas funções do menu "CRM Matrículas" da planilha, pra rodar direto do aplicativo. Algumas podem levar um tempinho — evite fechar o app enquanto estiver rodando.
+      </p>
+
+      ${estado.manutencaoResultado ? `
+        <div class="manutencao-resultado">
+          <div class="manutencao-resultado-titulo">${estado.manutencaoResultado.rotulo}</div>
+          <pre class="manutencao-resultado-texto">${estado.manutencaoResultado.texto}</pre>
+          <button class="btn ghost" id="fecharResultadoManutencao">Fechar resultado</button>
+        </div>
+      ` : `
+        <div class="manutencao-lista">
+          ${LISTA_FUNCOES_MANUTENCAO.map(f => `
+            <button class="manutencao-item" data-funcao="${f.chave}" ${estado.manutencaoRodando ? "disabled" : ""}>
+              <div class="manutencao-item-rotulo">
+                ${estado.manutencaoRodando === f.chave ? "Rodando..." : f.rotulo}
+              </div>
+              <div class="manutencao-item-desc">${f.descricao}</div>
+            </button>
+          `).join("")}
+        </div>
+      `}
+    </div>
+  `;
+
+  document.getElementById("fecharSheet").addEventListener("click", fecharTelaManutencao);
+
+  const btnFecharResultado = document.getElementById("fecharResultadoManutencao");
+  if(btnFecharResultado){
+    btnFecharResultado.addEventListener("click", () => {
+      estado.manutencaoResultado = null;
+      renderTelaManutencao();
+    });
+  }
+
+  document.querySelectorAll(".manutencao-item").forEach(btn => {
+    btn.addEventListener("click", () => rodarFuncaoManutencao(btn.dataset.funcao));
+  });
+}
+
+async function rodarFuncaoManutencao(chave){
+  if(estado.manutencaoRodando) return;
+
+  const def = LISTA_FUNCOES_MANUTENCAO.find(f => f.chave === chave);
+  estado.manutencaoRodando = chave;
+  renderTelaManutencao();
+
+  try{
+    const resultado = await apiManutencao(chave);
+    estado.manutencaoRodando = "";
+    estado.manutencaoResultado = { rotulo: def ? def.rotulo : chave, texto: resultado.mensagem || "Concluído." };
+    renderTelaManutencao();
+    // Algumas dessas funções podem ter alterado dados — atualiza a
+    // lista em segundo plano pra refletir o que mudou.
+    carregarContatos();
+  }catch(err){
+    estado.manutencaoRodando = "";
+    estado.manutencaoResultado = { rotulo: def ? def.rotulo : chave, texto: "Erro: " + err.message };
+    renderTelaManutencao();
+  }
+}
+
+/* Campos "categóricos" fazem sentido pra gráfico de barras — reaproveita
+   os mesmos 9 campos já usados nos filtros da tela inicial. */
+const CAMPOS_RELATORIO = CAMPOS_FILTRO;
+
+/* Conta quantos contatos existem por valor de um campo, dentro de
+   uma lista qualquer (usado pelo Relatório — não depende do estado
+   global de filtros, ao contrário de opcoesDisponiveis). */
+function contarValoresPorCampo(lista, chave){
+  const mapa = {};
+  lista.forEach(c => {
+    const v = valorOuBranco(c[chave]);
+    mapa[v] = (mapa[v] || 0) + 1;
+  });
+  return mapa;
+}
+
+/* Mapa campo-de-relatório -> qual coluna de data usar como período
+   (cada campo do relatório tem sua própria data de referência,
+   independente dos outros — por isso o período é salvo por campo). */
+const DATA_REFERENCIA_POR_CAMPO = {
+  STATUS_COMERCIAL: "REGISTRO_STATUS_COMERCIAL",
+  STATUS_COMPORTAMENTAL: "REGISTRO_STATUS_COMPORTAMENTAL",
+  REFERIDOS: "REGISTRO_TELEFONE",
+  FUSO: "REGISTRO_TELEFONE",
+  PAIS: "REGISTRO_TELEFONE",
+  REGIAO: "REGISTRO_TELEFONE",
+  PROFISSAO: "REGISTRO_TELEFONE"
+};
+
+/* Período salvo por campo — cada campo lembra seu próprio intervalo. */
+if(!estado.relatorioPeriodos){
+  estado.relatorioPeriodos = {};
+  CAMPOS_RELATORIO.forEach(f => { estado.relatorioPeriodos[f.chave] = { inicio: "", fim: "" }; });
+}
+
+function filtrarPorPeriodo(lista, chaveCampoData, inicioIso, fimIso){
+  if(!inicioIso && !fimIso) return lista;
+  return lista.filter(c => {
+    const dataStr = String(c[chaveCampoData] || "").substring(0, 10); // dd/MM/yyyy
+    const m = dataStr.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if(!m) return false;
+    const dataIso = m[3] + "-" + m[2] + "-" + m[1];
+    if(inicioIso && dataIso < inicioIso) return false;
+    if(fimIso && dataIso > fimIso) return false;
+    return true;
+  });
+}
+
+/* Cores usadas nas fatias/barras/linha do gráfico, em sequência */
+const CORES_GRAFICO = ["#123832","#DD0897","#1D5C9E","#8A6414","#1C6B3C","#A23B2E","#146356","#9E3866","#63676C","#2B6E8A"];
+
+/* Estado do gráfico do relatório — lembrado entre aberturas */
+if(estado.relatorioMostrarGrafico === undefined) estado.relatorioMostrarGrafico = false;
+if(estado.relatorioTipoGrafico === undefined) estado.relatorioTipoGrafico = "barra";
+if(estado.relatorioVerPorDia === undefined) estado.relatorioVerPorDia = false;
+if(estado.relatorioValoresSelecionados === undefined) estado.relatorioValoresSelecionados = {};
+
+/* Quais valores do campo atual o usuário escolheu ver (vazio = ver
+   todos, igual já era o comportamento padrão). */
+function obterSelecaoValoresRelatorio(chaveCampo){
+  if(!estado.relatorioValoresSelecionados[chaveCampo]){
+    estado.relatorioValoresSelecionados[chaveCampo] = new Set();
+  }
+  return estado.relatorioValoresSelecionados[chaveCampo];
+}
+
+/* Agrupa os dados já filtrados por período (e, se houver, pelos
+   valores escolhidos) por valor do campo (padrão) ou por dia (usando
+   a mesma coluna de data do período), pra responder "o que aconteceu
+   em cada dia". */
+function gerarEntradasRelatorio(dados, campo, chaveData, porDia){
+  if(porDia){
+    const mapa = {};
+    dados.forEach(c => {
+      const dataStr = String(c[chaveData] || "").substring(0, 10);
+      if(!/^\d{2}\/\d{2}\/\d{4}$/.test(dataStr)) return;
+      mapa[dataStr] = (mapa[dataStr] || 0) + 1;
+    });
+    return Object.keys(mapa)
+      .map(k => ({ label: k, valor: mapa[k], _iso: k.split("/").reverse().join("-") }))
+      .sort((a, b) => a._iso.localeCompare(b._iso));
+  }
+  const contagem = contarValoresPorCampo(dados, campo.chave);
+  return Object.keys(contagem)
+    .map(k => ({ label: k, valor: contagem[k] }))
+    .sort((a, b) => b.valor - a.valor);
+}
+
+/* Monta o HTML do gráfico (barra, pizza ou linha), com % de cada
+   fatia dentro do total do período selecionado. */
+function renderGraficoHtml(entradas, total, tipo){
+  if(entradas.length === 0){
+    return `<p style="color:var(--ink-faint);font-size:13px;text-align:center;padding:16px 0;">Nenhum dado pra mostrar no gráfico.</p>`;
+  }
+
+  if(tipo === "pizza"){
+    let acumulado = 0;
+    const fatias = entradas.map((e, i) => {
+      const pctIni = total > 0 ? (acumulado / total * 100) : 0;
+      acumulado += e.valor;
+      const pctFim = total > 0 ? (acumulado / total * 100) : 0;
+      const cor = CORES_GRAFICO[i % CORES_GRAFICO.length];
+      return `${cor} ${pctIni.toFixed(2)}% ${pctFim.toFixed(2)}%`;
+    }).join(", ");
+
+    const legenda = entradas.map((e, i) => {
+      const pct = total > 0 ? Math.round(e.valor / total * 100) : 0;
+      const cor = CORES_GRAFICO[i % CORES_GRAFICO.length];
+      return `<div class="grafico-legenda-item"><span class="grafico-legenda-cor" style="background:${cor}"></span><span class="grafico-legenda-label">${e.label}</span><span class="grafico-legenda-valor">${e.valor} (${pct}%)</span></div>`;
+    }).join("");
+
+    return `
+      <div class="grafico-pizza-wrap">
+        <div class="grafico-pizza" style="background: conic-gradient(${fatias});"></div>
+        <div class="grafico-legenda">${legenda}</div>
+      </div>
+    `;
+  }
+
+  if(tipo === "linha"){
+    const maxValor = Math.max.apply(null, entradas.map(e => e.valor));
+    const larguraSvg = Math.max(entradas.length * 64, 260);
+    const alturaSvg = 180;
+    const margemBaixo = 34;
+    const margemTopo = 16;
+    const areaUtil = alturaSvg - margemBaixo - margemTopo;
+
+    const pontos = entradas.map((e, i) => {
+      const x = entradas.length === 1 ? larguraSvg / 2 : (i / (entradas.length - 1)) * (larguraSvg - 40) + 20;
+      const y = maxValor > 0 ? margemTopo + areaUtil - (e.valor / maxValor) * areaUtil : margemTopo + areaUtil;
+      return { x, y, e };
+    });
+
+    const linhaPath = pontos.map((p, i) => (i === 0 ? "M" : "L") + p.x.toFixed(1) + "," + p.y.toFixed(1)).join(" ");
+    const cor = CORES_GRAFICO[1]; // rosa — cor única, já que é uma evolução ao longo do tempo/valores
+
+    const circulos = pontos.map(p => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4" fill="${cor}"/>`).join("");
+    const valores = pontos.map(p => `<text x="${p.x.toFixed(1)}" y="${(p.y - 9).toFixed(1)}" text-anchor="middle" font-size="10.5" font-weight="600" fill="var(--ink)">${p.e.valor}</text>`).join("");
+    const labels = pontos.map(p => `<text x="${p.x.toFixed(1)}" y="${alturaSvg - 12}" text-anchor="middle" font-size="9.5" fill="var(--ink-faint)">${escapeAttr(p.e.label.length > 9 ? p.e.label.slice(0,8) + "…" : p.e.label)}</text>`).join("");
+
+    return `
+      <div class="grafico-linha-wrap">
+        <svg viewBox="0 0 ${larguraSvg} ${alturaSvg}" width="${larguraSvg}" height="${alturaSvg}" style="min-width:${larguraSvg}px;">
+          <path d="${linhaPath}" fill="none" stroke="${cor}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+          ${circulos}
+          ${valores}
+          ${labels}
+        </svg>
+      </div>
+    `;
+  }
+
+  const maxValor = Math.max.apply(null, entradas.map(e => e.valor));
+  const barras = entradas.map((e, i) => {
+    const alturaPct = maxValor > 0 ? Math.max(Math.round(e.valor / maxValor * 100), 4) : 4;
+    const cor = CORES_GRAFICO[i % CORES_GRAFICO.length];
+    const pct = total > 0 ? Math.round(e.valor / total * 100) : 0;
+    return `
+      <div class="grafico-barra-col">
+        <div class="grafico-barra-valor">${e.valor}</div>
+        <div class="grafico-barra-corpo" style="height:${alturaPct}%;background:${cor};"></div>
+        <div class="grafico-barra-pct">${pct}%</div>
+        <div class="grafico-barra-label" title="${e.label}">${e.label}</div>
+      </div>
+    `;
+  }).join("");
+
+  return `<div class="grafico-barras-wrap">${barras}</div>`;
+}
+
+function renderTelaRelatorio(){
+  const sheet = document.getElementById("sheet");
+  const campo = CAMPOS_RELATORIO.find(f => f.chave === estado.relatorioCampo) || CAMPOS_RELATORIO[0];
+  const chaveData = DATA_REFERENCIA_POR_CAMPO[campo.chave];
+  const periodo = estado.relatorioPeriodos[campo.chave];
+  const selecaoValores = obterSelecaoValoresRelatorio(campo.chave);
+
+  const base = contatosFiltradosFinal();
+  const dadosPeriodo = filtrarPorPeriodo(base, chaveData, periodo.inicio, periodo.fim);
+
+  // Todas as opções existentes nesse campo dentro do período — usadas
+  // pra montar a lista de valores que dá pra escolher.
+  const todosOsValoresDoPeriodo = Object.keys(contarValoresPorCampo(dadosPeriodo, campo.chave)).sort();
+
+  // Se o usuário escolheu um ou mais valores específicos, só eles
+  // entram na lista/gráfico — o "total" do resumo continua sendo o
+  // do período inteiro, pra manter a % com a mesma referência.
+  const dados = selecaoValores.size > 0
+    ? dadosPeriodo.filter(c => selecaoValores.has(valorOuBranco(c[campo.chave])))
+    : dadosPeriodo;
+
+  const contagem = contarValoresPorCampo(dados, campo.chave);
+
+  const entradas = Object.keys(contagem)
+    .map(k => ({ label: k, valor: contagem[k] }))
+    .sort((a, b) => b.valor - a.valor);
+
+  const maxValor = entradas.length ? entradas[0].valor : 0;
+  const total = dadosPeriodo.length;
+
+  const entradasGrafico = gerarEntradasRelatorio(dados, campo, chaveData, estado.relatorioVerPorDia);
+
+  sheet.innerHTML = `
+    <div class="sheet-handle"></div>
+    <div class="sheet-header"><h3>Relatório</h3><button class="close" id="fecharSheet">✕</button></div>
+    <div class="sheet-body">
+      <div class="relatorio-resumo">
+        <div class="relatorio-total">${total}</div>
+        <div class="relatorio-total-label">contato${total === 1 ? "" : "s"} com os filtros atuais${periodo.inicio || periodo.fim ? " e período" : ""}</div>
+      </div>
+
+      <div class="detail-field">
+        <div class="k">Agrupar por</div>
+        <select id="relatorioSelect">
+          ${CAMPOS_RELATORIO.map(f => `<option value="${f.chave}" ${f.chave === campo.chave ? "selected" : ""}>${f.rotulo}</option>`).join("")}
+        </select>
+      </div>
+
+      <div class="data-box-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
+        <div class="data-item">
+          <label>Período de</label>
+          <input type="date" id="relatorioDataInicio" value="${periodo.inicio}">
+        </div>
+        <div class="data-item">
+          <label>Até</label>
+          <input type="date" id="relatorioDataFim" value="${periodo.fim}">
+        </div>
+      </div>
+
+      ${todosOsValoresDoPeriodo.length > 0 ? `
+        <div class="relatorio-selecao-valores">
+          <div class="k">Mostrar só estas opções (opcional)</div>
+          <div class="relatorio-valores-chips">
+            ${todosOsValoresDoPeriodo.map(v => `
+              <button class="chip-toggle chip-toggle-sm ${selecaoValores.has(v) ? "active" : ""}" data-valor-relatorio="${escapeAttr(v)}">${v}</button>
+            `).join("")}
+          </div>
+          ${selecaoValores.size > 0 ? `<button class="link-limpar" id="limparSelecaoValores">Limpar seleção</button>` : ""}
+        </div>
+      ` : ""}
+
+      <div class="relatorio-barras">
+        ${entradas.length === 0 ? `
+          <p style="color:var(--ink-faint);font-size:13px;text-align:center;padding:26px 0;">Nenhum dado pra mostrar com os filtros atuais.</p>
+        ` : entradas.map((e, i) => {
+          const pct = total > 0 ? Math.round((e.valor / total) * 100) : 0;
+          const largura = maxValor > 0 ? Math.round((e.valor / maxValor) * 100) : 0;
+          const cor = CORES_GRAFICO[i % CORES_GRAFICO.length];
+          return `
+            <div class="relatorio-linha" style="border-left-color:${cor};">
+              <div class="relatorio-linha-topo">
+                <span class="relatorio-label">${e.label}</span>
+                <span class="relatorio-valor">${e.valor} <span class="relatorio-pct">(${pct}%)</span></span>
+              </div>
+              <div class="relatorio-barra-fundo"><div class="relatorio-barra-preenchida" style="width:${largura}%;background:${cor};"></div></div>
+            </div>
+          `;
+        }).join("")}
+      </div>
+
+      <div class="grafico-controles">
+        <label class="grafico-toggle">
+          <input type="checkbox" id="graficoMostrar" ${estado.relatorioMostrarGrafico ? "checked" : ""}>
+          Mostrar gráfico
+        </label>
+
+        ${estado.relatorioMostrarGrafico ? `
+          <div class="grafico-opcoes">
+            <div class="chip-toggle-group">
+              <button class="chip-toggle ${estado.relatorioTipoGrafico === "barra" ? "active" : ""}" data-tipo-grafico="barra">Barra</button>
+              <button class="chip-toggle ${estado.relatorioTipoGrafico === "pizza" ? "active" : ""}" data-tipo-grafico="pizza">Pizza</button>
+              <button class="chip-toggle ${estado.relatorioTipoGrafico === "linha" ? "active" : ""}" data-tipo-grafico="linha">Linha (evolução)</button>
+            </div>
+            <label class="grafico-toggle">
+              <input type="checkbox" id="graficoPorDia" ${estado.relatorioVerPorDia ? "checked" : ""}>
+              Ver por dia (dentro do período)
+            </label>
+          </div>
+        ` : ""}
+      </div>
+
+      ${estado.relatorioMostrarGrafico ? `
+        <div class="grafico-area">
+          ${renderGraficoHtml(entradasGrafico, total, estado.relatorioTipoGrafico)}
+        </div>
+      ` : ""}
+    </div>
+  `;
+
+  document.getElementById("fecharSheet").addEventListener("click", fecharTelaRelatorio);
+  document.getElementById("relatorioSelect").addEventListener("change", (e) => {
+    estado.relatorioCampo = e.target.value;
+    renderTelaRelatorio();
+  });
+  document.getElementById("relatorioDataInicio").addEventListener("change", (e) => {
+    estado.relatorioPeriodos[campo.chave].inicio = e.target.value;
+    renderTelaRelatorio();
+  });
+  document.getElementById("relatorioDataFim").addEventListener("change", (e) => {
+    estado.relatorioPeriodos[campo.chave].fim = e.target.value;
+    renderTelaRelatorio();
+  });
+  document.getElementById("graficoMostrar").addEventListener("change", (e) => {
+    estado.relatorioMostrarGrafico = e.target.checked;
+    renderTelaRelatorio();
+  });
+  const btnPorDia = document.getElementById("graficoPorDia");
+  if(btnPorDia){
+    btnPorDia.addEventListener("change", (e) => {
+      estado.relatorioVerPorDia = e.target.checked;
+      renderTelaRelatorio();
+    });
+  }
+  document.querySelectorAll("[data-tipo-grafico]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      estado.relatorioTipoGrafico = btn.dataset.tipoGrafico;
+      renderTelaRelatorio();
+    });
+  });
+  document.querySelectorAll("[data-valor-relatorio]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const valor = btn.dataset.valorRelatorio;
+      if(selecaoValores.has(valor)) selecaoValores.delete(valor);
+      else selecaoValores.add(valor);
+      renderTelaRelatorio();
+    });
+  });
+  const btnLimparSelecao = document.getElementById("limparSelecaoValores");
+  if(btnLimparSelecao){
+    btnLimparSelecao.addEventListener("click", () => {
+      selecaoValores.clear();
+      renderTelaRelatorio();
+    });
+  }
+}
+
+/* ============================================================
+ * SHEET — adicionar contato novo (botão "+")
+ * ============================================================ */
+function abrirNovoContato(){
+  estado.salvandoNovo = false;
+  estado.erroNovo = "";
+  renderNovoContato();
+  abrirSheetElemento();
+}
+
+function renderNovoContato(){
+  const sheet = document.getElementById("sheet");
+
+  sheet.innerHTML = `
+    <div class="sheet-handle"></div>
+    <div class="sheet-header"><h3>Novo contato</h3><button class="close" id="fecharSheet">✕</button></div>
+    <div class="sheet-body" id="corpoNovoContato">
+      ${estado.erroNovo ? `<div class="aviso-erro">${estado.erroNovo}</div>` : ""}
+
+      <div class="detail-field">
+        <div class="k">Nome</div>
+        <input type="text" id="novoContatoNome" placeholder="Nome da pessoa">
+      </div>
+
+      <div class="detail-field">
+        <div class="k">Telefone *</div>
+        <input type="text" id="novoContatoTelefone" placeholder="+55 21 99999-9999">
+      </div>
+
+      <div class="detail-field">
+        <div class="k">Observação do Contato</div>
+        <input type="text" id="novoContatoObservacao" placeholder="Observações sobre o contato">
+      </div>
+
+      <div class="detail-field">
+        <div class="k">Indicado por</div>
+        <input type="text" id="novoContatoIndicado" placeholder="Quem indicou">
+      </div>
+
+      <div class="detail-field">
+        <div class="k">Observação do Indicado por</div>
+        <input type="text" id="novoContatoObservacaoIndicado" placeholder="Observações sobre quem indicou">
+      </div>
+
+      <div class="detail-field">
+        <div class="k">Status Comercial</div>
+        <select id="novoContatoStatusComercial">
+          ${(estado.opcoes.statusComercial || [""]).map(o => `<option value="${o}">${o === "" ? "(em branco)" : o}</option>`).join("")}
+        </select>
+      </div>
+
+      <div class="detail-field">
+        <div class="k">Status do Contato</div>
+        <select id="novoContatoStatusContato">
+          ${(estado.opcoes.statusComportamental || [""]).map(o => `<option value="${o}">${o === "" ? "(em branco)" : o}</option>`).join("")}
+        </select>
+      </div>
+
+      <div class="detail-field">
+        <div class="k">Profissão</div>
+        <input type="text" id="novoContatoProfissao" list="listaProfissoesNovo" placeholder="Digite ou escolha uma opção existente">
+        <datalist id="listaProfissoesNovo">
+          ${(estado.opcoes.profissao || []).filter(o => o !== "").map(o => `<option value="${escapeAttr(o)}"></option>`).join("")}
+        </datalist>
+      </div>
+
+      <div class="detail-field">
+        <div class="k">Referido</div>
+        <select id="novoContatoReferido">
+          ${(estado.opcoes.referidos || [""]).map(o => `<option value="${o}">${o === "" ? "(em branco)" : o}</option>`).join("")}
+        </select>
+      </div>
+
+      <div class="detail-field">
+        <div class="k">Agendamento</div>
+        <input type="datetime-local" id="novoContatoAgendamento">
+      </div>
+    </div>
+    <div class="sheet-footer">
+      <button class="btn ghost" id="cancelarNovoContato" ${estado.salvandoNovo ? "disabled" : ""}>Cancelar</button>
+      <button class="btn primary" id="salvarNovoContato" ${estado.salvandoNovo ? "disabled" : ""}>${estado.salvandoNovo ? "Salvando..." : "Adicionar contato"}</button>
+    </div>
+  `;
+
+  document.getElementById("fecharSheet").addEventListener("click", fecharSheet);
+  document.getElementById("cancelarNovoContato").addEventListener("click", fecharSheet);
+  document.getElementById("salvarNovoContato").addEventListener("click", salvarNovoContato);
+}
+
+async function salvarNovoContato(){
+  if(estado.salvandoNovo) return;
+
+  const aba = ABA_CONTATOS;
+  const telefone = document.getElementById("novoContatoTelefone").value.trim();
+  const nome = document.getElementById("novoContatoNome").value.trim();
+  const observacao = document.getElementById("novoContatoObservacao").value.trim();
+  const indicado = document.getElementById("novoContatoIndicado").value.trim();
+  const observacaoIndicado = document.getElementById("novoContatoObservacaoIndicado").value.trim();
+  const statusComercial = document.getElementById("novoContatoStatusComercial").value;
+  const statusContato = document.getElementById("novoContatoStatusContato").value;
+  const profissao = document.getElementById("novoContatoProfissao").value.trim();
+  const referido = document.getElementById("novoContatoReferido").value;
+  const agendamento = document.getElementById("novoContatoAgendamento").value;
+
+  if(telefone === ""){
+    estado.erroNovo = "Telefone é obrigatório.";
+    renderNovoContato();
+    return;
+  }
+
+  const dados = { TELEFONE: telefone };
+  if(nome !== "") dados.NOME = nome;
+  if(observacao !== "") dados.OBSERVACAO = observacao;
+  if(indicado !== "") dados.INDICADO_POR = indicado;
+  if(observacaoIndicado !== "") dados.OBSERVACAO_INDICADO = observacaoIndicado;
+  if(statusComercial !== "") dados.STATUS_COMERCIAL = statusComercial;
+  if(statusContato !== "") dados.STATUS_COMPORTAMENTAL = statusContato;
+  if(profissao !== "") dados.PROFISSAO = profissao;
+  if(referido !== "") dados.REFERIDOS = referido;
+
+  estado.salvandoNovo = true;
+  estado.erroNovo = "";
+  renderNovoContato();
+
+  try{
+    const resultado = await apiCriar(aba, dados);
+
+    // Se um agendamento foi escolhido no formulário, agenda logo em
+    // seguida (mesmo caminho usado na tela de detalhes de um contato
+    // já existente — cria o evento no Google Agenda e marca o status
+    // comercial como AGENDADO).
+    if(agendamento){
+      try{
+        await apiAgendar(aba, resultado.linha, agendamento);
+      }catch(erroAgenda){
+        // Contato já foi criado com sucesso — só avisa que o
+        // agendamento em si não foi salvo, sem desfazer o contato.
+        mostrarToast("Contato criado, mas o agendamento falhou: " + erroAgenda.message);
+      }
+    }
+
+    const contatoCompleto = await apiDetalhe(aba, resultado.linha);
+    estado.contatos.push(contatoCompleto);
+    salvarCacheLocal();
+    estado.salvandoNovo = false;
+    fecharSheet();
+    renderTudo();
+    mostrarToast("Contato adicionado!");
+  }catch(err){
+    estado.salvandoNovo = false;
+    estado.erroNovo = "Não foi possível adicionar: " + err.message;
+    renderNovoContato();
+  }
+}
+
+
+/* ============================================================
+ * START
+ * ============================================================ */
+if(typeof SUPABASE_PUBLISHABLE_KEY === "undefined" || SUPABASE_PUBLISHABLE_KEY.indexOf("COLE_AQUI") !== -1){
+  document.getElementById("app").innerHTML = `
+    <div style="padding:28px 20px;">
+      <div style="font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#1B5A4F;font-weight:600;margin-bottom:6px;">Configuração pendente</div>
+      <h1 style="font-family:'Space Grotesk',sans-serif;font-size:24px;margin:0 0 8px;">Falta conectar o Supabase</h1>
+      <p style="color:#63676C;font-size:14px;line-height:1.5;">Abra o arquivo <code>supabase-client.js</code> e confira se a Publishable key do seu projeto Supabase está preenchida.</p>
+    </div>
+  `;
+} else {
+  iniciar();
+
+  if("serviceWorker" in navigator){
+    // registro simples, sem cache offline por enquanto — só ajuda o
+    // navegador a reconhecer o site como instalável
+  }
+}
+</script>
+</body>
+</html>
