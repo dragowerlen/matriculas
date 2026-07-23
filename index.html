@@ -87,11 +87,11 @@
 
   .list{ padding: 6px 14px 40px; }
   #cardsWrap{ display: flex; flex-direction: column; gap: 10px; }
-  .card{ background: var(--surface); border-radius: var(--radius); padding: 14px; box-shadow: var(--shadow); }
+  .card{ background: var(--surface); border-radius: var(--radius); padding: 10px 14px; box-shadow: var(--shadow); }
   .card-header-row{ display: flex; align-items: center; gap: 10px; }
   .card-header-row .nome{ flex: 1; min-width: 0; font-size: 15.5px; font-weight: 600; font-family: 'Space Grotesk', sans-serif; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .card-header-actions{ display: flex; gap: 8px; flex-shrink: 0; }
-  .card .tel{ font-size: 13px; color: var(--ink-soft); margin-top: 4px; }
+  .card .tel{ font-size: 13px; color: var(--ink-soft); margin-top: 1px; }
   .filtro-badges-row{ display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
   .filtro-badge{ background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 3px 9px; font-size: 10.5px; font-weight: 600; }
   .card .pills{ display: flex; gap: 5px; margin-top: 7px; flex-wrap: wrap; }
@@ -298,6 +298,64 @@ const estado = {
 CAMPOS_FILTRO.forEach(f => estado.filtros[f.chave] = new Set());
 CAMPOS_FILTRO_DATA.forEach(f => estado.filtrosData[f.chave] = "");
 
+const CHAVE_FILTROS_SALVOS = "ultimosFiltrosAtivos";
+
+/* Salva os filtros ativos no momento (a cada re-filtragem da lista),
+   pra serem restaurados automaticamente ao reabrir/recarregar o app. */
+function persistirFiltrosAtivos(){
+  try{
+    const paraSalvar = {
+      filtros: {},
+      filtrosData: { ...estado.filtrosData },
+      busca: estado.busca
+    };
+    CAMPOS_FILTRO.forEach(f => {
+      paraSalvar.filtros[f.chave] = Array.from(estado.filtros[f.chave]);
+    });
+    localStorage.setItem(CHAVE_FILTROS_SALVOS, JSON.stringify(paraSalvar));
+  }catch(e){
+    // se o navegador bloquear localStorage, simplesmente não persiste
+  }
+}
+
+/* Restaura os filtros salvos da última vez, chamado uma vez ao abrir
+   o app (antes do primeiro carregamento da lista). */
+function restaurarFiltrosSalvos(){
+  try{
+    const bruto = localStorage.getItem(CHAVE_FILTROS_SALVOS);
+    if(!bruto) return;
+    const salvos = JSON.parse(bruto);
+
+    if(salvos.filtros){
+      CAMPOS_FILTRO.forEach(f => {
+        const valores = salvos.filtros[f.chave];
+        if(Array.isArray(valores) && valores.length > 0){
+          estado.filtros[f.chave] = new Set(valores);
+        }
+      });
+    }
+
+    if(salvos.filtrosData){
+      CAMPOS_FILTRO_DATA.forEach(f => {
+        if(salvos.filtrosData[f.chave]){
+          estado.filtrosData[f.chave] = salvos.filtrosData[f.chave];
+        }
+      });
+    }
+
+    if(salvos.busca){
+      estado.busca = salvos.busca;
+    }
+
+    if(algumFiltroAtivo()){
+      estado.mostrarFiltros = true;
+    }
+  }catch(e){
+    // se der qualquer problema lendo o que estava salvo, ignora e
+    // começa sem nenhum filtro ativo, sem quebrar o app
+  }
+}
+
 /* Estado de UI (expandido, edição, agendamento...) de cada card,
    criado sob demanda na primeira vez que o card é tocado. */
 function obterCardUI(linha){
@@ -422,13 +480,18 @@ function salvarMensagemWhatsappTemplate(texto){
   }
 }
 
-function linkWhatsapp(telefone, nome){
+function primeiroNomeDe(textoCompleto){
+  return String(textoCompleto || "").trim().split(" ")[0] || "";
+}
+
+function linkWhatsapp(telefone, nome, indicadoPor){
   const digitos = String(telefone || "").replace(/\D/g, "");
   if(digitos === "") return "#";
 
-  const primeiroNome = String(nome || "").trim().split(" ")[0] || "";
   const template = obterMensagemWhatsappTemplate();
-  const mensagem = template.replace(/\{nome\}/gi, primeiroNome);
+  const mensagem = template
+    .replace(/\{nome\}/gi, primeiroNomeDe(nome))
+    .replace(/\{indicado_por\}/gi, primeiroNomeDe(indicadoPor));
 
   return "https://wa.me/" + digitos + "?text=" + encodeURIComponent(mensagem);
 }
@@ -577,6 +640,8 @@ function salvarCacheLocal(){
 }
 
 async function iniciar(){
+  restaurarFiltrosSalvos();
+
   const cache = lerCacheLocal();
 
   if(cache){
@@ -803,6 +868,7 @@ function renderListaEContagem(){
   }
 
   listaFiltradaAtual = contatosFiltradosFinal();
+  persistirFiltrosAtivos();
 
   if(listaFiltradaAtual.length === 0){
     lista.innerHTML = `<div class="empty-state"><div class="big">🔍</div>Nenhum contato encontrado com esses filtros.</div>`;
@@ -963,7 +1029,7 @@ function cardInnerHtml(c){
       <div class="nome">${c.NOME || "(sem nome)"}</div>
       <div class="card-header-actions">
         <button class="icon-btn info ${ui.expandido ? "active" : ""}" aria-label="Mais informações">${iconInfo()}</button>
-        <a class="icon-btn whatsapp" href="${linkWhatsapp(c.TELEFONE, c.NOME)}" target="_blank" rel="noopener" aria-label="WhatsApp">${iconWhatsapp()}</a>
+        <a class="icon-btn whatsapp" href="${linkWhatsapp(c.TELEFONE, c.NOME, c.INDICADO_POR)}" target="_blank" rel="noopener" aria-label="WhatsApp">${iconWhatsapp()}</a>
       </div>
     </div>
     <div class="tel">${c.TELEFONE || "—"}</div>
@@ -1555,16 +1621,7 @@ function fecharTelaRelatorio(){
  * em vez de abrir uma caixinha de diálogo (que só existe dentro do
  * editor da planilha).
  * ============================================================ */
-const LISTA_FUNCOES_MANUTENCAO = [
-  { chave: "processarPendentes", rotulo: "Processar pendentes agora", descricao: "Formata telefones e recalcula fuso/país/região de linhas que entraram por fora do app." },
-  { chave: "atualizarDuplicados", rotulo: "Recalcular duplicados", descricao: "Repinta em vermelho/amarelo os telefones duplicados na planilha." },
-  { chave: "reordenarDuplicados", rotulo: "Reagrupar linhas duplicadas", descricao: "Junta as linhas com o mesmo telefone, uma embaixo da outra." },
-  { chave: "sincronizarAgenda", rotulo: "Sincronizar agendamentos com a Agenda", descricao: "Confere se algum agendamento foi apagado direto no Google Agenda." },
-  { chave: "corrigirAgendamentosAntigos", rotulo: "Corrigir exibição de agendamentos antigos", descricao: "Conserta agendamentos antigos que perderam a hora na exibição." },
-  { chave: "verificarColunas", rotulo: "Verificar colunas", descricao: "Confere se todas as colunas que o sistema precisa existem na planilha." },
-  { chave: "verificarAbas", rotulo: "Verificar nomes das abas", descricao: "Confere se o nome da aba bate exatamente com o que o código espera." },
-  { chave: "diagnosticoCache", rotulo: "Diagnóstico de cache (performance)", descricao: "Mostra se o cache que acelera o carregamento está ativo." }
-];
+const LISTA_FUNCOES_MANUTENCAO = [];
 
 function abrirTelaManutencao(){
   estado.naTelaManutencao = true;
@@ -1584,41 +1641,17 @@ function renderTelaManutencao(){
 
   sheet.innerHTML = `
     <div class="sheet-handle"></div>
-    <div class="sheet-header"><h3>Manutenção</h3><button class="close" id="fecharSheet">✕</button></div>
+    <div class="sheet-header"><h3>Configurações</h3><button class="close" id="fecharSheet">✕</button></div>
     <div class="sheet-body">
-      <p style="color:var(--ink-faint);font-size:12.5px;margin-bottom:14px;">
-        As mesmas funções do menu "CRM Matrículas" da planilha, pra rodar direto do aplicativo. Algumas podem levar um tempinho — evite fechar o app enquanto estiver rodando.
-      </p>
-
       <div class="mensagem-whatsapp-box">
         <div class="mensagem-whatsapp-titulo">Mensagem padrão do WhatsApp</div>
         <p style="color:var(--ink-faint);font-size:12px;margin:0 0 8px;">
-          Use <b>{nome}</b> em qualquer lugar do texto pra inserir automaticamente o primeiro nome do contato. Essa mensagem é usada sempre que você clica no botão do WhatsApp na lista.
+          Use <b>{nome}</b> e <b>{indicado_por}</b> em qualquer lugar do texto — eles são trocados automaticamente pelo primeiro nome do contato e de quem indicou. Essa mensagem é usada sempre que você clica no botão do WhatsApp na lista.
         </p>
         <textarea id="mensagemWhatsappInput" rows="3" style="width:100%;box-sizing:border-box;border:1px solid #DAD5C8;border-radius:10px;padding:8px 10px;font-size:13px;font-family:inherit;resize:vertical;">${escapeAttr(obterMensagemWhatsappTemplate())}</textarea>
         <button class="btn ghost" id="salvarMensagemWhatsapp" style="margin-top:8px;">Salvar mensagem</button>
       </div>
 
-      <div style="height:16px;"></div>
-
-      ${estado.manutencaoResultado ? `
-        <div class="manutencao-resultado">
-          <div class="manutencao-resultado-titulo">${estado.manutencaoResultado.rotulo}</div>
-          <pre class="manutencao-resultado-texto">${estado.manutencaoResultado.texto}</pre>
-          <button class="btn ghost" id="fecharResultadoManutencao">Fechar resultado</button>
-        </div>
-      ` : `
-        <div class="manutencao-lista">
-          ${LISTA_FUNCOES_MANUTENCAO.map(f => `
-            <button class="manutencao-item" data-funcao="${f.chave}" ${estado.manutencaoRodando ? "disabled" : ""}>
-              <div class="manutencao-item-rotulo">
-                ${estado.manutencaoRodando === f.chave ? "Rodando..." : f.rotulo}
-              </div>
-              <div class="manutencao-item-desc">${f.descricao}</div>
-            </button>
-          `).join("")}
-        </div>
-      `}
     </div>
   `;
 
@@ -1628,18 +1661,6 @@ function renderTelaManutencao(){
     const texto = document.getElementById("mensagemWhatsappInput").value;
     salvarMensagemWhatsappTemplate(texto);
     mostrarToast("Mensagem do WhatsApp salva");
-  });
-
-  const btnFecharResultado = document.getElementById("fecharResultadoManutencao");
-  if(btnFecharResultado){
-    btnFecharResultado.addEventListener("click", () => {
-      estado.manutencaoResultado = null;
-      renderTelaManutencao();
-    });
-  }
-
-  document.querySelectorAll(".manutencao-item").forEach(btn => {
-    btn.addEventListener("click", () => rodarFuncaoManutencao(btn.dataset.funcao));
   });
 }
 
