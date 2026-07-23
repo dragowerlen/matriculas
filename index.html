@@ -116,6 +116,46 @@
 
   /* Caixa única de filtro (referidos, fuso, país, região, status, datas, buscar) */
   .filtros-box{ border: 1.4px solid var(--border); border-radius: var(--radius); padding: 12px; margin: 10px 14px 0; background: var(--surface); }
+
+  .menu-topo-dot{ position:absolute; top:2px; right:2px; width:9px; height:9px; border-radius:50%; background:#E4453A; border:1.5px solid var(--accent); }
+  .menu-topo-dropdown{
+    position:absolute; top:calc(100% + 8px); right:0; z-index:40; min-width:200px;
+    background:#fff; border-radius:var(--radius); box-shadow:0 8px 24px rgba(0,0,0,.18);
+    padding:6px; display:flex; flex-direction:column; gap:2px;
+  }
+  .menu-topo-item{
+    display:flex; align-items:center; gap:10px; text-align:left; background:none; border:none;
+    padding:10px 12px; border-radius:var(--radius-sm); font-size:13.5px; font-weight:500; color:var(--ink);
+    width:100%;
+  }
+  .menu-topo-item:active{ background:var(--bg); }
+  .menu-topo-item.ativo{ background:var(--accent-soft); color:var(--accent); }
+  .menu-topo-item svg{ width:17px; height:17px; flex-shrink:0; }
+
+  .btn-icon-claro{
+    width:32px; height:32px; flex-shrink:0; border-radius:50%; border:1.3px solid var(--border);
+    background:var(--bg); color:var(--ink-soft); display:flex; align-items:center; justify-content:center;
+  }
+  .btn-icon-claro svg{ width:16px; height:16px; }
+  .btn-icon-claro.ativo{ border-color:#E4453A; color:#E4453A; }
+  .btn-icon-claro:disabled{ opacity:.4; }
+
+  .filtros-box-topo{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
+  .filtros-box-topo .aviso-busca-ativa{ flex:1; margin-bottom:0; }
+  .filtros-duas-colunas{ display:flex; gap:0; border:1px solid var(--border); border-radius:var(--radius-sm); overflow:hidden; }
+  .filtros-categorias{
+    flex:0 0 42%; max-height:280px; overflow-y:auto; background:var(--bg);
+    border-right:1px solid var(--border); display:flex; flex-direction:column;
+  }
+  .categoria-filtro-item{
+    text-align:left; background:none; border:none; border-bottom:1px solid var(--border);
+    padding:11px 10px; font-size:12.5px; font-weight:500; color:var(--ink-soft);
+  }
+  .categoria-filtro-item.ativa{ background:var(--surface); color:var(--accent); font-weight:600; }
+  .categoria-filtro-item .n{ background:var(--accent); color:#fff; border-radius:999px; font-size:10px; padding:1px 6px; font-weight:600; margin-left:4px; }
+  .filtros-valores{ flex:1; max-height:280px; overflow-y:auto; padding:6px 10px; background:var(--surface); }
+  .filtros-valores-vazio{ color:var(--ink-faint); font-size:12.5px; padding:14px 4px; }
+  .filtros-valores .check-row{ padding:9px 2px; font-size:13px; }
   .filter-grid{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
   .filter-grid + .filter-grid{ margin-top: 8px; }
   .chip.grid{ width: 100%; justify-content: center; text-align: center; padding: 9px 6px; font-size: 12px; white-space: normal; line-height: 1.25; }
@@ -343,6 +383,8 @@ const estado = {
   contatos: [],
   carregando: true,
   busca: "",
+  mostrarMenuTopo: false,
+  filtroCategoriaAtiva: null,
   buscaAberta: false,
   filtros: {},
   filtrosData: {},
@@ -358,6 +400,7 @@ const estado = {
   importarLoteTexto: "",
   importarLoteContatos: [],
   importarLoteIndicadoPor: "",
+  importarLoteObservacaoIndicadoPor: "",
   importarLoteReferido: "",
   importarLoteCarregandoGoogle: false,
   importarLoteEnviando: false,
@@ -847,6 +890,15 @@ const LOGO_SVG = `<svg class="topbar-logo" viewBox="0 0 60 60" xmlns="http://www
   <text x="30" y="32" text-anchor="middle" dy="0.35em" font-family="'Space Grotesk',sans-serif" font-weight="700" font-size="18" fill="#DD0897">M</text>
 </svg>`;
 
+function fecharMenuTopoAoClicarFora(e){
+  const dropdown = document.getElementById("menuTopoDropdown");
+  const botao = document.getElementById("btnMenuTopo");
+  if(!dropdown || !botao) return;
+  if(dropdown.contains(e.target) || botao.contains(e.target)) return;
+  estado.mostrarMenuTopo = false;
+  renderTudo();
+}
+
 function renderTudo(){
   const app = document.getElementById("app");
   const carregando = algumCarregando();
@@ -859,32 +911,52 @@ function renderTudo(){
             ${LOGO_SVG}
             <h1>MATRÍCULAS</h1>
           </div>
-          <div style="display:flex; gap:8px;">
-            <button class="btn-add" id="btnManutencao" aria-label="Manutenção">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 1-5.4 5.4L4 17l3 3 5.3-5.3a4 4 0 0 1 5.4-5.4l-3-3-3 3z"/></svg>
+          <div style="position:relative;">
+            <button class="btn-add" id="btnMenuTopo" aria-label="Menu">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+              ${(estado.mostrarFiltros || estado.busca.trim() !== "") ? `<span class="menu-topo-dot"></span>` : ""}
             </button>
-            <button class="btn-add" id="btnAdicionarContato" aria-label="Adicionar contato">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            </button>
-            <button class="btn-add" id="btnImportarLote" aria-label="Importar contatos em lote">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            </button>
-            <button class="btn-add" id="btnRelatorio" aria-label="Relatório">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="20" x2="6" y2="12"/><line x1="12" y1="20" x2="12" y2="6"/><line x1="18" y1="20" x2="18" y2="15"/></svg>
-            </button>
-            <button class="btn-add ${estado.mostrarFiltros ? "on" : ""}" id="btnFiltrar" aria-label="Filtro" style="${estado.mostrarFiltros ? "background:rgba(255,255,255,.32);" : ""}">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="4,4 20,4 14,12.5 14,19 10,21 10,12.5"/></svg>
-            </button>
+            <div class="menu-topo-dropdown" id="menuTopoDropdown" style="display:${estado.mostrarMenuTopo ? "block" : "none"};">
+              <button class="menu-topo-item" id="menuItemManutencao">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 1-5.4 5.4L4 17l3 3 5.3-5.3a4 4 0 0 1 5.4-5.4l-3-3-3 3z"/></svg>
+                Configurações
+              </button>
+              <button class="menu-topo-item" id="menuItemAdicionar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Adicionar contato
+              </button>
+              <button class="menu-topo-item" id="menuItemImportar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Importar em lote
+              </button>
+              <button class="menu-topo-item" id="menuItemRelatorio">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="20" x2="6" y2="12"/><line x1="12" y1="20" x2="12" y2="6"/><line x1="18" y1="20" x2="18" y2="15"/></svg>
+                Relatório
+              </button>
+              <button class="menu-topo-item ${estado.mostrarFiltros ? "ativo" : ""}" id="menuItemFiltro">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="4,4 20,4 14,12.5 14,19 10,21 10,12.5"/></svg>
+                Filtro
+              </button>
+              <button class="menu-topo-item ${estado.busca.trim() !== "" ? "ativo" : ""}" id="menuItemBuscar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                Buscar
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
       <div class="filtros-box" id="filtrosBox" style="display:${estado.mostrarFiltros ? "block" : "none"};">
-        <div class="aviso-busca-ativa" id="avisoBuscaAtiva" style="display:none;"></div>
-        <div class="filter-grid" id="filterGridLinha1"></div>
-        <div class="filter-grid" id="filterGridLinha2"></div>
-        <div class="filter-grid" id="filterGridLinha3"></div>
-        <div class="filter-grid" id="filterGridLinha4" style="grid-template-columns: repeat(4, 1fr);"></div>
+        <div class="filtros-box-topo">
+          <div class="aviso-busca-ativa" id="avisoBuscaAtiva" style="display:none;"></div>
+          <button class="btn-icon-claro" id="btnLimparFiltro" aria-label="Limpar filtro">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+          </button>
+        </div>
+        <div class="filtros-duas-colunas">
+          <div class="filtros-categorias" id="filtrosCategorias"></div>
+          <div class="filtros-valores" id="filtrosValores"></div>
+        </div>
       </div>
 
       <div class="result-count" style="display:none;"></div>
@@ -896,15 +968,44 @@ function renderTudo(){
     <div class="sheet" id="sheet"></div>
   `;
 
-  document.getElementById("btnFiltrar").addEventListener("click", () => {
-    estado.mostrarFiltros = !estado.mostrarFiltros;
+  document.getElementById("btnMenuTopo").addEventListener("click", (e) => {
+    e.stopPropagation();
+    estado.mostrarMenuTopo = !estado.mostrarMenuTopo;
     renderTudo();
   });
 
-  document.getElementById("btnAdicionarContato").addEventListener("click", abrirNovoContato);
-  document.getElementById("btnImportarLote").addEventListener("click", abrirImportarLote);
-  document.getElementById("btnRelatorio").addEventListener("click", abrirTelaRelatorio);
-  document.getElementById("btnManutencao").addEventListener("click", abrirTelaManutencao);
+  if(estado.mostrarMenuTopo){
+    document.addEventListener("click", fecharMenuTopoAoClicarFora, { once: true });
+  }
+
+  document.getElementById("menuItemManutencao").addEventListener("click", () => {
+    estado.mostrarMenuTopo = false;
+    abrirTelaManutencao();
+  });
+  document.getElementById("menuItemAdicionar").addEventListener("click", () => {
+    estado.mostrarMenuTopo = false;
+    abrirNovoContato();
+  });
+  document.getElementById("menuItemImportar").addEventListener("click", () => {
+    estado.mostrarMenuTopo = false;
+    abrirImportarLote();
+  });
+  document.getElementById("menuItemRelatorio").addEventListener("click", () => {
+    estado.mostrarMenuTopo = false;
+    abrirTelaRelatorio();
+  });
+  document.getElementById("menuItemFiltro").addEventListener("click", () => {
+    estado.mostrarMenuTopo = false;
+    estado.mostrarFiltros = !estado.mostrarFiltros;
+    renderTudo();
+  });
+  document.getElementById("menuItemBuscar").addEventListener("click", () => {
+    estado.mostrarMenuTopo = false;
+    renderTudo();
+    abrirBusca();
+  });
+
+  document.getElementById("btnLimparFiltro").addEventListener("click", limparTodosFiltros);
 
   document.getElementById("backdrop").addEventListener("click", fecharSheet);
 
@@ -912,25 +1013,15 @@ function renderTudo(){
   renderListaEContagem();
 }
 
-/* Painel único de filtro, em 4 linhas:
-   1: Referidos, Fuso, País
-   2: Região, Status Comercial, Status do Contato
-   3: Profissão, Data do Status Comercial, Data do Status do Contato
-   4: Data do Telefone, Data do Agendamento, Buscar */
+/* Painel de filtro em duas colunas: à esquerda a lista de categorias
+   (Referido, Fuso, País, Região, Status Comercial, Status do Contato,
+   Profissão + as 4 datas), à direita as opções da categoria clicada,
+   com caixinhas que já salvam sozinhas ao marcar/desmarcar — sem
+   precisar de "Aplicar" nem "Limpar" por categoria. */
 function renderFiltrosChips(){
   if(!estado.mostrarFiltros) return;
 
   const buscaAtiva = estado.busca.trim() !== "";
-
-  const chipCheckbox = (f) => {
-    const n = estado.filtros[f.chave].size;
-    const ativo = n > 0;
-    return `<button class="chip grid ${ativo ? "active" : ""}" data-campo="${f.chave}">${f.rotulo}${ativo ? ` <span class="n">${n}</span>` : ""}</button>`;
-  };
-  const chipData = (f) => {
-    const ativo = !!estado.filtrosData[f.chave];
-    return `<button class="chip grid ${ativo ? "active" : ""}" data-campo-data="${f.chave}">${f.rotulo}</button>`;
-  };
 
   const avisoBusca = document.getElementById("avisoBuscaAtiva");
   if(avisoBusca){
@@ -938,47 +1029,83 @@ function renderFiltrosChips(){
     avisoBusca.textContent = buscaAtiva ? `Busca ativa: mostrando resultados de "${estado.busca.trim()}" em todos os contatos. Os filtros abaixo estão pausados.` : "";
   }
 
-  const linha1 = document.getElementById("filterGridLinha1");
-  linha1.innerHTML = [
-    chipCheckbox(CAMPOS_FILTRO.find(f => f.chave === "REFERIDOS")),
-    chipCheckbox(CAMPOS_FILTRO.find(f => f.chave === "FUSO")),
-    chipCheckbox(CAMPOS_FILTRO.find(f => f.chave === "PAIS"))
-  ].join("");
+  const btnLimpar = document.getElementById("btnLimparFiltro");
+  if(btnLimpar){
+    const temFiltroPraLimpar = algumFiltroAtivo();
+    btnLimpar.disabled = !temFiltroPraLimpar;
+    btnLimpar.classList.toggle("ativo", temFiltroPraLimpar);
+  }
 
-  const linha2 = document.getElementById("filterGridLinha2");
-  linha2.innerHTML = [
-    chipCheckbox(CAMPOS_FILTRO.find(f => f.chave === "REGIAO")),
-    chipCheckbox(CAMPOS_FILTRO.find(f => f.chave === "STATUS_COMERCIAL")),
-    chipCheckbox(CAMPOS_FILTRO.find(f => f.chave === "STATUS_COMPORTAMENTAL"))
-  ].join("");
+  const itensCategoria = [
+    ...CAMPOS_FILTRO.map(f => ({ ...f, tipo: "checklist" })),
+    ...CAMPOS_FILTRO_DATA.map(f => ({ ...f, tipo: "data" }))
+  ];
 
-  const linha3 = document.getElementById("filterGridLinha3");
-  linha3.innerHTML = [
-    chipCheckbox(CAMPOS_FILTRO.find(f => f.chave === "PROFISSAO")),
-    chipData(CAMPOS_FILTRO_DATA.find(f => f.chave === "REGISTRO_STATUS_COMERCIAL")),
-    chipData(CAMPOS_FILTRO_DATA.find(f => f.chave === "REGISTRO_STATUS_COMPORTAMENTAL"))
-  ].join("");
+  const colCategorias = document.getElementById("filtrosCategorias");
+  colCategorias.innerHTML = itensCategoria.map(f => {
+    const ativa = estado.filtroCategoriaAtiva === f.chave;
+    let badge = "";
+    if(f.tipo === "checklist"){
+      const n = estado.filtros[f.chave].size;
+      if(n > 0) badge = ` <span class="n">${n}</span>`;
+    } else if(estado.filtrosData[f.chave]){
+      badge = ` <span class="n">●</span>`;
+    }
+    return `<button class="categoria-filtro-item ${ativa ? "ativa" : ""}" data-chave="${f.chave}">${f.rotulo}${badge}</button>`;
+  }).join("");
 
-  const linha4 = document.getElementById("filterGridLinha4");
-  const rotuloBuscar = buscaAtiva
-    ? `Buscando: "${estado.busca.trim().length > 12 ? estado.busca.trim().slice(0, 12) + "…" : estado.busca.trim()}"`
-    : "Buscar";
-  const temFiltroPraLimpar = algumFiltroAtivo();
-  linha4.innerHTML = [
-    chipData(CAMPOS_FILTRO_DATA.find(f => f.chave === "REGISTRO_TELEFONE")),
-    chipData(CAMPOS_FILTRO_DATA.find(f => f.chave === "AGENDAMENTO")),
-    `<button class="chip grid ${temFiltroPraLimpar ? "active" : ""}" id="btnLimparFiltro" ${temFiltroPraLimpar ? "" : "disabled"}>Limpar Filtro</button>`,
-    `<button class="chip grid buscar ${buscaAtiva ? "active-busca" : ""}" id="btnAbrirBusca">${rotuloBuscar}</button>`
-  ].join("");
-
-  document.querySelectorAll(".chip[data-campo]").forEach(chip => {
-    chip.addEventListener("click", () => abrirFiltro(chip.dataset.campo));
+  colCategorias.querySelectorAll(".categoria-filtro-item").forEach(btn => {
+    btn.addEventListener("click", () => {
+      estado.filtroCategoriaAtiva = btn.dataset.chave;
+      renderFiltrosChips();
+    });
   });
-  document.querySelectorAll(".chip[data-campo-data]").forEach(chip => {
-    chip.addEventListener("click", () => abrirFiltroData(chip.dataset.campoData));
-  });
-  document.getElementById("btnAbrirBusca").addEventListener("click", abrirBusca);
-  document.getElementById("btnLimparFiltro").addEventListener("click", limparTodosFiltros);
+
+  const colValores = document.getElementById("filtrosValores");
+  const itemAtivo = itensCategoria.find(f => f.chave === estado.filtroCategoriaAtiva);
+
+  if(!itemAtivo){
+    colValores.innerHTML = `<p class="filtros-valores-vazio">Toque numa categoria ao lado pra ver as opções.</p>`;
+    return;
+  }
+
+  if(itemAtivo.tipo === "checklist"){
+    const contagens = opcoesDisponiveis(itemAtivo.chave);
+    const valores = ordenarValoresFiltro(itemAtivo.chave, Object.keys(contagens));
+    const selecionados = estado.filtros[itemAtivo.chave];
+
+    colValores.innerHTML = valores.length === 0
+      ? `<p class="filtros-valores-vazio">Nenhuma opção disponível com os filtros atuais.</p>`
+      : valores.map((v, i) => `
+        <div class="check-row">
+          <input type="checkbox" id="chkFiltro_${i}" ${selecionados.has(v) ? "checked" : ""} data-valor="${encodeURIComponent(v)}">
+          <label for="chkFiltro_${i}">${v}</label>
+          <span class="count">${contagens[v]}</span>
+        </div>
+      `).join("");
+
+    colValores.querySelectorAll('input[type=checkbox]').forEach(chk => {
+      chk.addEventListener("change", () => {
+        const valor = decodeURIComponent(chk.dataset.valor);
+        if(chk.checked) selecionados.add(valor); else selecionados.delete(valor);
+        renderFiltrosChips();
+        renderListaEContagem();
+      });
+    });
+  } else {
+    const valorIso = brParaIso(estado.filtrosData[itemAtivo.chave]);
+    colValores.innerHTML = `
+      <div class="data-item">
+        <label>Escolha a data</label>
+        <input type="date" id="inputFiltroDataInline" value="${valorIso}">
+      </div>
+    `;
+    document.getElementById("inputFiltroDataInline").addEventListener("change", (e) => {
+      estado.filtrosData[itemAtivo.chave] = isoParaBr(e.target.value);
+      renderFiltrosChips();
+      renderListaEContagem();
+    });
+  }
 }
 
 /* Limpa todos os filtros ativos (checklist + data) de uma vez, sem
@@ -1628,7 +1755,7 @@ function configurarScrollInfinito(lista){
 }
 
 /* ============================================================
- * SHEET — filtro em cascata
+ * FILTROS — abaixo, seleção e ordenação de valores por categoria
  * ============================================================ */
 function ordenarValoresFiltro(chave, valores){
   if(chave === "FUSO"){
@@ -1640,83 +1767,6 @@ function ordenarValoresFiltro(chave, valores){
     });
   }
   return valores.slice().sort((a, b) => a.localeCompare(b, "pt-BR"));
-}
-
-function abrirFiltro(chave){
-  const campo = CAMPOS_FILTRO.find(f => f.chave === chave);
-  const contagens = opcoesDisponiveis(chave);
-  const valores = ordenarValoresFiltro(chave, Object.keys(contagens));
-  const selecionadosAtuais = new Set(estado.filtros[chave]);
-
-  const sheet = document.getElementById("sheet");
-  sheet.innerHTML = `
-    <div class="sheet-handle"></div>
-    <div class="sheet-header"><h3>${campo.rotulo}</h3><button class="close" id="fecharSheet">✕</button></div>
-    <div class="sheet-body">
-      ${valores.length === 0 ? `<p style="color:var(--ink-faint);font-size:14px;">Nenhuma opção disponível com os filtros atuais.</p>` : valores.map((v,i) => `
-        <div class="check-row">
-          <input type="checkbox" id="chk_${chave}_${i}" ${selecionadosAtuais.has(v) ? "checked" : ""} data-valor="${encodeURIComponent(v)}">
-          <label for="chk_${chave}_${i}">${v}</label>
-          <span class="count">${contagens[v]}</span>
-        </div>
-      `).join("")}
-    </div>
-    <div class="sheet-footer">
-      <button class="btn ghost" id="limparFiltro">Limpar</button>
-      <button class="btn primary" id="aplicarFiltro">Aplicar</button>
-    </div>
-  `;
-
-  document.getElementById("fecharSheet").addEventListener("click", fecharSheet);
-  document.getElementById("limparFiltro").addEventListener("click", () => {
-    sheet.querySelectorAll('input[type=checkbox]').forEach(chk => chk.checked = false);
-  });
-  document.getElementById("aplicarFiltro").addEventListener("click", () => {
-    const novoSet = new Set();
-    sheet.querySelectorAll('input[type=checkbox]:checked').forEach(chk => novoSet.add(decodeURIComponent(chk.dataset.valor)));
-    estado.filtros[chave] = novoSet;
-    fecharSheet();
-    renderFiltrosChips();
-    renderListaEContagem();
-  });
-
-  abrirSheetElemento();
-}
-
-/* Sheet de filtro de data — calendário nativo único por campo */
-function abrirFiltroData(chave){
-  const campo = CAMPOS_FILTRO_DATA.find(f => f.chave === chave);
-  const valorIso = brParaIso(estado.filtrosData[chave]);
-
-  const sheet = document.getElementById("sheet");
-  sheet.innerHTML = `
-    <div class="sheet-handle"></div>
-    <div class="sheet-header"><h3>${campo.rotulo}</h3><button class="close" id="fecharSheet">✕</button></div>
-    <div class="sheet-body">
-      <div class="data-item">
-        <label>Escolha a data</label>
-        <input type="date" id="inputFiltroData" value="${valorIso}">
-      </div>
-    </div>
-    <div class="sheet-footer">
-      <button class="btn ghost" id="limparFiltroData">Limpar</button>
-      <button class="btn primary" id="aplicarFiltroData">Aplicar</button>
-    </div>
-  `;
-
-  document.getElementById("fecharSheet").addEventListener("click", fecharSheet);
-  document.getElementById("limparFiltroData").addEventListener("click", () => {
-    document.getElementById("inputFiltroData").value = "";
-  });
-  document.getElementById("aplicarFiltroData").addEventListener("click", () => {
-    const valor = document.getElementById("inputFiltroData").value;
-    estado.filtrosData[chave] = isoParaBr(valor);
-    fecharSheet();
-    renderFiltrosChips();
-    renderListaEContagem();
-  });
-
-  abrirSheetElemento();
 }
 
 /* Sheet de busca livre — nome, telefone, indicação, etc. */
@@ -1808,6 +1858,7 @@ function abrirImportarLote(){
   estado.importarLoteTexto = "";
   estado.importarLoteContatos = [];
   estado.importarLoteIndicadoPor = "";
+  estado.importarLoteObservacaoIndicadoPor = "";
   estado.importarLoteReferido = "";
   estado.importarLoteEnviando = false;
   estado.importarLoteProgresso = 0;
@@ -1846,7 +1897,7 @@ function interpretarTextoColado(texto){
     const linha = linhas[i];
 
     if(linhaPareceTelefone(linha)){
-      contatos.push({ nome: nomePendente, telefone: linha, profissao: "" });
+      contatos.push({ nome: nomePendente, telefone: linha, profissao: "", observacao: "" });
       nomePendente = "";
     } else {
       // Se já tinha um nome pendente sem telefone associado (2 nomes
@@ -1875,6 +1926,10 @@ function removerContatoDoLote(indice){
 
 function atualizarProfissaoDoLote(indice, valor){
   if(estado.importarLoteContatos[indice]) estado.importarLoteContatos[indice].profissao = valor;
+}
+
+function atualizarObservacaoDoLote(indice, valor){
+  if(estado.importarLoteContatos[indice]) estado.importarLoteContatos[indice].observacao = valor;
 }
 
 /* ------------------------------------------------------------
@@ -1929,6 +1984,7 @@ async function processarArquivoExcelLote(arquivo){
       else if(normalizado === "telefone") mapa.telefone = cab;
       else if(normalizado === "indicadopor") mapa.indicadoPor = cab;
       else if(normalizado === "profissao") mapa.profissao = cab;
+      else if(normalizado === "observacao" || normalizado === "observacaocontato" || normalizado === "observacoes") mapa.observacao = cab;
     }
 
     if(!mapa.telefone){
@@ -1952,6 +2008,7 @@ async function processarArquivoExcelLote(arquivo){
         nome: mapa.nome ? String(linha[mapa.nome] || "").trim() : "",
         telefone: telefoneBruto,
         profissao: mapa.profissao ? String(linha[mapa.profissao] || "").trim() : "",
+        observacao: mapa.observacao ? String(linha[mapa.observacao] || "").trim() : "",
         indicadoPor: mapa.indicadoPor ? String(linha[mapa.indicadoPor] || "").trim() : "",
         googleResourceName: null
       });
@@ -2051,6 +2108,7 @@ async function buscarContatosGoogle(accessToken){
         nome,
         telefone: telefoneBruto,
         profissao: "",
+        observacao: "",
         googleResourceName: pessoa.resourceName || null
       });
       telefonesJaNaLista.add(somenteDigitos);
@@ -2105,8 +2163,10 @@ async function confirmarImportacaoLote(){
         NOME: contato.nome || "",
         TELEFONE: contato.telefone,
         INDICADO_POR: contato.indicadoPor || estado.importarLoteIndicadoPor || "",
+        OBSERVACAO_INDICADO: estado.importarLoteObservacaoIndicadoPor || "",
         REFERIDOS: estado.importarLoteReferido || "",
         PROFISSAO: contato.profissao || "",
+        OBSERVACAO: contato.observacao || "",
         STATUS_COMERCIAL: "",
         STATUS_COMPORTAMENTAL: ""
       });
@@ -2179,7 +2239,10 @@ function renderTelaImportarLote(){
               <div style="flex:1;">
                 <div class="preview-importacao-nome">${c.nome ? escapeAttr(c.nome) : "(sem nome)"}</div>
                 <div class="preview-importacao-tel">${escapeAttr(c.telefone)}</div>
-                ${contatos.length <= 80 ? `<input type="text" class="input-profissao-lote" data-indice="${i}" list="listaProfissoesLote" value="${escapeAttr(c.profissao || "")}" placeholder="Profissão (opcional)" ${estado.importarLoteEnviando ? "disabled" : ""}>` : ""}
+                ${contatos.length <= 80 ? `
+                  <input type="text" class="input-profissao-lote" data-indice="${i}" list="listaProfissoesLote" value="${escapeAttr(c.profissao || "")}" placeholder="Profissão (opcional)" ${estado.importarLoteEnviando ? "disabled" : ""}>
+                  <input type="text" class="input-observacao-lote" data-indice="${i}" value="${escapeAttr(c.observacao || "")}" placeholder="Observação sobre este contato (opcional)" ${estado.importarLoteEnviando ? "disabled" : ""}>
+                ` : ""}
               </div>
               ${!estado.importarLoteEnviando ? `<button type="button" class="preview-importacao-remover" data-indice="${i}" aria-label="Remover">✕</button>` : ""}
             </div>
@@ -2193,6 +2256,9 @@ function renderTelaImportarLote(){
         <div class="mensagem-whatsapp-titulo">Aplicar a quem estiver em branco</div>
         <div class="detail-field"><div class="k">Indicado por</div>
           <input type="text" id="loteIndicadoPor" value="${escapeAttr(estado.importarLoteIndicadoPor)}" placeholder="Nome + telefone de quem indicou" ${estado.importarLoteEnviando ? "disabled" : ""}>
+        </div>
+        <div class="detail-field"><div class="k">Observação do Indicado por</div>
+          <input type="text" id="loteObservacaoIndicadoPor" value="${escapeAttr(estado.importarLoteObservacaoIndicadoPor)}" placeholder="Aplica a mesma observação a todos os contatos" ${estado.importarLoteEnviando ? "disabled" : ""}>
         </div>
         <div class="detail-field"><div class="k">Referido</div>
           <select id="loteReferido" ${estado.importarLoteEnviando ? "disabled" : ""}>
@@ -2222,8 +2288,15 @@ function renderTelaImportarLote(){
     input.addEventListener("input", e => atualizarProfissaoDoLote(Number(e.target.dataset.indice), e.target.value));
   });
 
+  document.querySelectorAll(".input-observacao-lote").forEach(input => {
+    input.addEventListener("input", e => atualizarObservacaoDoLote(Number(e.target.dataset.indice), e.target.value));
+  });
+
   const inputIndicadoPor = document.getElementById("loteIndicadoPor");
   if(inputIndicadoPor) inputIndicadoPor.addEventListener("input", e => { estado.importarLoteIndicadoPor = e.target.value; });
+
+  const inputObservacaoIndicadoPor = document.getElementById("loteObservacaoIndicadoPor");
+  if(inputObservacaoIndicadoPor) inputObservacaoIndicadoPor.addEventListener("input", e => { estado.importarLoteObservacaoIndicadoPor = e.target.value; });
 
   const selectReferido = document.getElementById("loteReferido");
   if(selectReferido) selectReferido.addEventListener("change", e => { estado.importarLoteReferido = e.target.value; });
