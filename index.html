@@ -12,6 +12,8 @@
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" href="icons/icon-192.png">
 <title>MATRÍCULAS</title>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -95,6 +97,18 @@
   .modal-caixa p{ font-size:13px; color:var(--ink-soft); line-height:1.4; margin:0 0 10px; }
   .modal-caixa select{ width:100%; border:1px solid #DAD5C8; border-radius:8px; padding:7px 8px; font-size:13px; margin-bottom:12px; }
   .modal-acoes{ display:flex; justify-content:flex-end; gap:8px; }
+  .lista-preview-importacao{ display:flex; flex-direction:column; gap:6px; max-height:220px; overflow-y:auto; }
+  .preview-importacao-item{
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    background:#F7F5EF; border:1px solid #E5E0D2; border-radius:10px; padding:7px 10px;
+  }
+  .preview-importacao-nome{ font-size:12.5px; font-weight:600; }
+  .preview-importacao-tel{ font-size:11.5px; color:var(--ink-faint); }
+  .preview-importacao-remover{
+    flex-shrink:0; border:none; background:#EFE9DA; color:var(--ink-soft); width:22px; height:22px;
+    border-radius:50%; font-size:12px; cursor:pointer;
+  }
+  .preview-importacao-remover:hover{ background:#E4453A; color:#fff; }
   .topbar .sub{ font-size: 12.5px; opacity: .78; margin-top: 4px; margin-left: 65px; }
   .btn-add{ width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%; border: none; background: rgba(255,255,255,.18); color: #fff; font-size: 18px; line-height: 1; display: flex; align-items: center; justify-content: center; }
   .btn-add:active{ background: rgba(255,255,255,.3); }
@@ -269,6 +283,24 @@ const LINK_AGENDA = "https://calendar.google.com/calendar/u/0/r?cid=" + encodeUR
 
 const ABA_CONTATOS = "CONTATOS";
 
+/* Preencha com o "Client ID" criado no Google Cloud Console (ver instruções
+   enviadas em separado). Sem isso, o botão "Importar do Google Contatos"
+   não funciona. */
+const GOOGLE_CLIENT_ID = "940850704715-lao03stkfdkgjieklk1419rlts3qt53q.apps.googleusercontent.com";
+/* Escopo de leitura E escrita — precisa de escrita pra poder excluir o
+   contato do Google depois que ele for importado com sucesso. */
+const GOOGLE_CONTACTS_SCOPE = "https://www.googleapis.com/auth/contacts";
+
+/* Caractere que marca um contato como "de trabalho" no Google Contatos.
+   Só contatos cujo nome começar com isso são buscados/importados —
+   contatos pessoais (sem o caractere) são ignorados. */
+const MARCADOR_CONTATO_PESSOAL = "*";
+
+/* Só contatos salvos/alterados nos últimos X dias entram na busca —
+   protege contatos pessoais antigos (sem marcação) de serem varridos
+   junto, já que a marcação agora é só pra proteção pontual. */
+const DIAS_RECENCIA_GOOGLE_CONTATOS = 3;
+
 const CORES_STATUS_COMERCIAL = {
   "PRIORIDADE": ["#FBE1D9","#A23B2E"], "FOLLOW UP": ["#DDEAFB","#1D5C9E"], "ÁUDIO/MSG": ["#EAE1F7","#5B3E9E"],
   "AGENDADO": ["#FBEBC9","#8A6414"], "1x MANHÃ": ["#F6E9DC","#8A5A28"], "1x TARDE": ["#F6E9DC","#8A5A28"],
@@ -322,6 +354,14 @@ const estado = {
   naTelaRelatorio: false,
   relatorioCampo: "STATUS_COMERCIAL",
   naTelaManutencao: false,
+  naTelaImportarLote: false,
+  importarLoteTexto: "",
+  importarLoteContatos: [],
+  importarLoteIndicadoPor: "",
+  importarLoteReferido: "",
+  importarLoteCarregandoGoogle: false,
+  importarLoteEnviando: false,
+  importarLoteProgresso: 0,
   manutencaoRodando: "",
   manutencaoResultado: null,
   relatorioDataInicio: "",
@@ -826,6 +866,9 @@ function renderTudo(){
             <button class="btn-add" id="btnAdicionarContato" aria-label="Adicionar contato">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             </button>
+            <button class="btn-add" id="btnImportarLote" aria-label="Importar contatos em lote">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </button>
             <button class="btn-add" id="btnRelatorio" aria-label="Relatório">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="20" x2="6" y2="12"/><line x1="12" y1="20" x2="12" y2="6"/><line x1="18" y1="20" x2="18" y2="15"/></svg>
             </button>
@@ -859,6 +902,7 @@ function renderTudo(){
   });
 
   document.getElementById("btnAdicionarContato").addEventListener("click", abrirNovoContato);
+  document.getElementById("btnImportarLote").addEventListener("click", abrirImportarLote);
   document.getElementById("btnRelatorio").addEventListener("click", abrirTelaRelatorio);
   document.getElementById("btnManutencao").addEventListener("click", abrirTelaManutencao);
 
@@ -1750,6 +1794,443 @@ function fecharTelaRelatorio(){
  * editor da planilha).
  * ============================================================ */
 const LISTA_FUNCOES_MANUTENCAO = [];
+
+/* ============================================================
+ * IMPORTAR CONTATOS EM LOTE (colados do WhatsApp)
+ * ------------------------------------------------------------
+ * O usuário cola o texto copiado da lista de contatos compartilhada
+ * no WhatsApp — nome numa linha, telefone na linha seguinte,
+ * repetindo — e o app separa os pares sozinho, sem precisar de
+ * nenhuma configuração no Excel.
+ * ============================================================ */
+function abrirImportarLote(){
+  estado.naTelaImportarLote = true;
+  estado.importarLoteTexto = "";
+  estado.importarLoteContatos = [];
+  estado.importarLoteIndicadoPor = "";
+  estado.importarLoteReferido = "";
+  estado.importarLoteEnviando = false;
+  estado.importarLoteProgresso = 0;
+  estado.importarLoteCarregandoGoogle = false;
+  renderTelaImportarLote();
+  abrirSheetElemento();
+}
+
+function fecharImportarLote(){
+  estado.naTelaImportarLote = false;
+  fecharSheet();
+}
+
+/* Detecta se uma linha "parece" um telefone (bastante dígitos,
+   pode ter +, espaços, parênteses e hífen). */
+function linhaPareceTelefone(linha){
+  const digitos = linha.replace(/\D/g, "");
+  if(digitos.length < 8) return false;
+  // A linha inteira, tirando os dígitos, só pode ter espaço, +, (, ), -
+  const resto = linha.replace(/[\d\s()+\-]/g, "");
+  return resto === "";
+}
+
+/**
+ * Recebe o texto colado (várias linhas) e devolve uma lista de
+ * { nome, telefone, profissao }. Funciona tanto no padrão "Nome" seguido de
+ * "Telefone" quanto o contrário, e também lida com telefone sem
+ * nome (fica com nome em branco).
+ */
+function interpretarTextoColado(texto){
+  const linhas = texto.split("\n").map(l => l.trim()).filter(l => l !== "");
+  const contatos = [];
+  let nomePendente = "";
+
+  for(let i = 0; i < linhas.length; i++){
+    const linha = linhas[i];
+
+    if(linhaPareceTelefone(linha)){
+      contatos.push({ nome: nomePendente, telefone: linha, profissao: "" });
+      nomePendente = "";
+    } else {
+      // Se já tinha um nome pendente sem telefone associado (2 nomes
+      // seguidos), o de antes fica sem telefone — descarta, porque
+      // um contato sem telefone não serve de nada aqui.
+      nomePendente = linha;
+    }
+  }
+
+  return contatos;
+}
+
+function processarTextoColadoLote(){
+  const textarea = document.getElementById("importarLoteTextarea");
+  if(!textarea) return;
+
+  estado.importarLoteTexto = textarea.value;
+  estado.importarLoteContatos = estado.importarLoteContatos.concat(interpretarTextoColado(textarea.value));
+  renderTelaImportarLote();
+}
+
+function removerContatoDoLote(indice){
+  estado.importarLoteContatos.splice(indice, 1);
+  renderTelaImportarLote();
+}
+
+function atualizarProfissaoDoLote(indice, valor){
+  if(estado.importarLoteContatos[indice]) estado.importarLoteContatos[indice].profissao = valor;
+}
+
+/* ------------------------------------------------------------
+ * IMPORTAÇÃO VIA GOOGLE CONTATOS
+ * Fluxo: usuário toca "Adicionar" nos contatos compartilhados pelo
+ * WhatsApp (isso salva no Google Contatos do celular) e depois usa
+ * este botão pra trazer os contatos recentes pra dentro do app,
+ * sem precisar de computador nem Excel.
+ * ------------------------------------------------------------ */
+let googleTokenClientContatos = null;
+let tokenGoogleContatosAtual = null;
+
+/* ------------------------------------------------------------
+ * IMPORTAÇÃO VIA PLANILHA EXCEL (.xlsx/.xls/.csv)
+ * Pensada pra grupos de WhatsApp com centenas de contatos: a
+ * planilha já traz nome, telefone, indicado por e profissão
+ * prontos, linha por linha — sem precisar preencher nada na tela.
+ * ------------------------------------------------------------ */
+function normalizarCabecalho(texto){
+  return texto
+    .toString()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // remove acentos
+    .toLowerCase()
+    .replace(/[^a-z]/g, ""); // remove espaços, underscores, etc.
+}
+
+function iniciarImportarPlanilha(){
+  document.getElementById("inputArquivoExcelLote").click();
+}
+
+async function processarArquivoExcelLote(arquivo){
+  if(!arquivo) return;
+
+  try{
+    const bytes = await arquivo.arrayBuffer();
+    const pasta = XLSX.read(bytes, { type: "array" });
+    const primeiraAba = pasta.Sheets[pasta.SheetNames[0]];
+    const linhas = XLSX.utils.sheet_to_json(primeiraAba, { defval: "" });
+
+    if(linhas.length === 0){
+      mostrarToast("A planilha está vazia.");
+      return;
+    }
+
+    // Mapeia os cabeçalhos da planilha (com variações de acento/espaço)
+    // pras chaves internas que usamos.
+    const cabecalhos = Object.keys(linhas[0]);
+    const mapa = {};
+    for(const cab of cabecalhos){
+      const normalizado = normalizarCabecalho(cab);
+      if(normalizado === "nome") mapa.nome = cab;
+      else if(normalizado === "telefone") mapa.telefone = cab;
+      else if(normalizado === "indicadopor") mapa.indicadoPor = cab;
+      else if(normalizado === "profissao") mapa.profissao = cab;
+    }
+
+    if(!mapa.telefone){
+      mostrarToast('A planilha precisa ter uma coluna "Telefone".');
+      return;
+    }
+
+    const telefonesJaNaLista = new Set(estado.importarLoteContatos.map(c => c.telefone.replace(/\D/g, "")));
+    let adicionados = 0;
+    let semTelefone = 0;
+
+    for(const linha of linhas){
+      const telefoneBruto = String(linha[mapa.telefone] || "").trim();
+      if(!telefoneBruto){ semTelefone++; continue; }
+
+      const somenteDigitos = telefoneBruto.replace(/\D/g, "");
+      if(somenteDigitos.length < 8){ semTelefone++; continue; }
+      if(telefonesJaNaLista.has(somenteDigitos)) continue;
+
+      estado.importarLoteContatos.push({
+        nome: mapa.nome ? String(linha[mapa.nome] || "").trim() : "",
+        telefone: telefoneBruto,
+        profissao: mapa.profissao ? String(linha[mapa.profissao] || "").trim() : "",
+        indicadoPor: mapa.indicadoPor ? String(linha[mapa.indicadoPor] || "").trim() : "",
+        googleResourceName: null
+      });
+      telefonesJaNaLista.add(somenteDigitos);
+      adicionados++;
+    }
+
+    mostrarToast(`${adicionados} contato${adicionados === 1 ? "" : "s"} da planilha adicionado${adicionados === 1 ? "" : "s"} à lista`
+      + (semTelefone > 0 ? ` (${semTelefone} sem telefone válido, ignorado${semTelefone === 1 ? "" : "s"})` : ""));
+
+    renderTelaImportarLote();
+  }catch(err){
+    mostrarToast("Erro ao ler a planilha: " + err.message);
+  }
+}
+
+function iniciarImportarGoogleContatos(){
+  if(GOOGLE_CLIENT_ID.startsWith("COLE_AQUI")){
+    mostrarToast("Configuração do Google Contatos ainda não foi concluída.");
+    return;
+  }
+  if(typeof google === "undefined" || !google.accounts || !google.accounts.oauth2){
+    mostrarToast("Não foi possível carregar o login do Google. Verifique sua internet e tente novamente.");
+    return;
+  }
+
+  estado.importarLoteCarregandoGoogle = true;
+  renderTelaImportarLote();
+
+  if(!googleTokenClientContatos){
+    googleTokenClientContatos = google.accounts.oauth2.initTokenClient({
+      client_id: GOOGLE_CLIENT_ID,
+      scope: GOOGLE_CONTACTS_SCOPE,
+      callback: (resposta) => {
+        if(resposta && resposta.access_token){
+          buscarContatosGoogle(resposta.access_token);
+        } else {
+          estado.importarLoteCarregandoGoogle = false;
+          mostrarToast("Não foi possível conectar ao Google Contatos.");
+          renderTelaImportarLote();
+        }
+      }
+    });
+  }
+
+  googleTokenClientContatos.requestAccessToken();
+}
+
+async function buscarContatosGoogle(accessToken){
+  try{
+    const url = "https://people.googleapis.com/v1/people/me/connections"
+      + "?personFields=names,phoneNumbers,metadata"
+      + "&sortOrder=LAST_MODIFIED_DESCENDING"
+      + "&pageSize=100";
+
+    const resposta = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+
+    if(!resposta.ok) throw new Error("Falha na consulta ao Google Contatos (" + resposta.status + ")");
+
+    const dados = await resposta.json();
+    const pessoas = dados.connections || [];
+
+    const telefonesJaNaLista = new Set(estado.importarLoteContatos.map(c => c.telefone.replace(/\D/g, "")));
+    const limiteRecencia = Date.now() - (DIAS_RECENCIA_GOOGLE_CONTATOS * 24 * 60 * 60 * 1000);
+    let adicionados = 0;
+
+    for(const pessoa of pessoas){
+      const nomeCompleto = (pessoa.names && pessoa.names[0] && pessoa.names[0].displayName) || "";
+
+      // Contatos pessoais (marcados com o caractere de proteção) são
+      // ignorados. Todo o resto — a maioria, sem marcação nenhuma —
+      // é considerado de trabalho e entra na busca.
+      if(nomeCompleto.trim().endsWith(MARCADOR_CONTATO_PESSOAL)) continue;
+
+      // Proteção contra varrer contatos antigos: só considera quem foi
+      // salvo/alterado recentemente (a API não expõe "data de criação"
+      // separada, então usamos a data de modificação mais recente entre
+      // as fontes do contato).
+      const fontes = (pessoa.metadata && pessoa.metadata.sources) || [];
+      const dataMaisRecente = fontes.reduce((maisRecente, fonte) => {
+        const t = fonte.updateTime ? new Date(fonte.updateTime).getTime() : 0;
+        return t > maisRecente ? t : maisRecente;
+      }, 0);
+      if(dataMaisRecente < limiteRecencia) continue;
+
+      const nome = nomeCompleto.trim();
+      const telefoneBruto = pessoa.phoneNumbers && pessoa.phoneNumbers[0] && pessoa.phoneNumbers[0].value;
+      if(!telefoneBruto) continue;
+
+      const somenteDigitos = telefoneBruto.replace(/\D/g, "");
+      if(somenteDigitos.length < 8) continue;
+      if(telefonesJaNaLista.has(somenteDigitos)) continue;
+
+      estado.importarLoteContatos.push({
+        nome,
+        telefone: telefoneBruto,
+        profissao: "",
+        googleResourceName: pessoa.resourceName || null
+      });
+      telefonesJaNaLista.add(somenteDigitos);
+      adicionados++;
+    }
+
+    // Guarda o token em memória (não persiste, some ao recarregar a página)
+    // pra poder excluir os contatos do Google depois da importação confirmada.
+    if(adicionados > 0) tokenGoogleContatosAtual = accessToken;
+
+    mostrarToast(adicionados > 0
+      ? `${adicionados} contato${adicionados === 1 ? "" : "s"} marcado${adicionados === 1 ? "" : "s"} trazido${adicionados === 1 ? "" : "s"} do Google Contatos`
+      : "Nenhum contato novo de trabalho foi encontrado");
+  }catch(err){
+    mostrarToast("Erro ao buscar contatos do Google: " + err.message);
+  }finally{
+    estado.importarLoteCarregandoGoogle = false;
+    renderTelaImportarLote();
+  }
+}
+
+/* Exclui um contato do Google (chamado só depois que ele já foi salvo
+   com sucesso no CRM). Falhas aqui não interrompem a importação —
+   o contato já está seguro no sistema de qualquer forma. */
+async function excluirContatoDoGoogle(resourceName){
+  if(!resourceName || !tokenGoogleContatosAtual) return false;
+  try{
+    const resposta = await fetch(
+      `https://people.googleapis.com/v1/${resourceName}:deleteContact`,
+      { method: "DELETE", headers: { Authorization: `Bearer ${tokenGoogleContatosAtual}` } }
+    );
+    return resposta.ok;
+  }catch(err){
+    return false;
+  }
+}
+
+async function confirmarImportacaoLote(){
+  if(estado.importarLoteContatos.length === 0) return;
+
+  estado.importarLoteEnviando = true;
+  estado.importarLoteProgresso = 0;
+  renderTelaImportarLote();
+
+  let sucesso = 0;
+  let erros = 0;
+  let excluidosDoGoogle = 0;
+
+  for(const contato of estado.importarLoteContatos){
+    try{
+      await apiCriar(ABA_CONTATOS, {
+        NOME: contato.nome || "",
+        TELEFONE: contato.telefone,
+        INDICADO_POR: contato.indicadoPor || estado.importarLoteIndicadoPor || "",
+        REFERIDOS: estado.importarLoteReferido || "",
+        PROFISSAO: contato.profissao || "",
+        STATUS_COMERCIAL: "",
+        STATUS_COMPORTAMENTAL: ""
+      });
+      sucesso++;
+
+      if(contato.googleResourceName){
+        const excluiu = await excluirContatoDoGoogle(contato.googleResourceName);
+        if(excluiu) excluidosDoGoogle++;
+      }
+    }catch(err){
+      erros++;
+    }
+    estado.importarLoteProgresso++;
+    renderTelaImportarLote();
+  }
+
+  estado.importarLoteEnviando = false;
+  mostrarToast(`Importação concluída: ${sucesso} adicionado${sucesso === 1 ? "" : "s"}${erros > 0 ? `, ${erros} com erro` : ""}${excluidosDoGoogle > 0 ? ` (${excluidosDoGoogle} removido${excluidosDoGoogle === 1 ? "" : "s"} do Google Contatos)` : ""}`);
+
+  fecharImportarLote();
+  carregarContatos();
+}
+
+function renderTelaImportarLote(){
+  const sheet = document.getElementById("sheet");
+  const contatos = estado.importarLoteContatos;
+
+  sheet.innerHTML = `
+    <div class="sheet-handle"></div>
+    <div class="sheet-header"><h3>Importar contatos em lote</h3><button class="close" id="fecharSheet">✕</button></div>
+    <div class="sheet-body">
+
+      <button class="btn ghost" id="btnImportarGoogle" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;" ${estado.importarLoteCarregandoGoogle ? "disabled" : ""}>
+        <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+        ${estado.importarLoteCarregandoGoogle ? "Buscando contatos..." : "Importar do Google Contatos"}
+      </button>
+      <p style="color:var(--ink-faint);font-size:11px;margin:6px 0 14px;">
+        Toque em "Adicionar" normalmente nos contatos de trabalho — nenhuma marcação é necessária, eles já entram aqui e são apagados do Google Contatos automaticamente depois de importados. Se algum contato <strong>pessoal</strong> ficar salvo por engano e você quiser que ele fique de fora, coloque um <strong>${MARCADOR_CONTATO_PESSOAL}</strong> no final do nome dele (ex: <strong>Minha Esposa${MARCADOR_CONTATO_PESSOAL}</strong>). Só contatos salvos/alterados nos últimos ${DIAS_RECENCIA_GOOGLE_CONTATOS} dias entram na busca, então contatos pessoais antigos já ficam de fora automaticamente.
+      </p>
+
+      <input type="file" id="inputArquivoExcelLote" accept=".xlsx,.xls,.csv" style="display:none">
+      <button class="btn ghost" id="btnImportarExcel" style="width:100%;">
+        📊 Importar planilha (Excel/CSV)
+      </button>
+      <p style="color:var(--ink-faint);font-size:11px;margin:6px 0 14px;">
+        Ideal pra grupos de WhatsApp com muitos contatos. A planilha deve ter colunas chamadas <strong>Nome</strong>, <strong>Telefone</strong> (obrigatória), <strong>Indicado por</strong> e <strong>Profissão</strong> — cada linha pode ter valores diferentes.
+      </p>
+
+      <div style="display:flex;align-items:center;gap:8px;margin:4px 0 12px;">
+        <div style="flex:1;height:1px;background:#E5E0D2;"></div>
+        <span style="font-size:11px;color:var(--ink-faint);">ou cole manualmente</span>
+        <div style="flex:1;height:1px;background:#E5E0D2;"></div>
+      </div>
+
+      <p style="color:var(--ink-faint);font-size:12.5px;margin:0 0 8px;">
+        Copie a lista de contatos direto do WhatsApp (nome e telefone, um embaixo do outro) e cole aqui:
+      </p>
+      <textarea id="importarLoteTextarea" rows="5" placeholder="Cole aqui os contatos copiados do WhatsApp..." style="width:100%;box-sizing:border-box;border:1px solid #DAD5C8;border-radius:10px;padding:8px 10px;font-size:12.5px;font-family:inherit;resize:vertical;" ${estado.importarLoteEnviando ? "disabled" : ""}></textarea>
+      <button class="btn ghost" id="btnProcessarColado" style="margin-top:8px;" ${estado.importarLoteEnviando ? "disabled" : ""}>Identificar contatos</button>
+
+      ${contatos.length > 0 ? `
+        <div style="height:14px;"></div>
+        <div class="mensagem-whatsapp-titulo">${contatos.length} contato${contatos.length === 1 ? "" : "s"} na lista</div>
+        ${contatos.length > 80 ? `
+          <p style="color:var(--ink-faint);font-size:11.5px;margin:0 0 8px;">Lista grande — mostrando só os campos essenciais pra manter o app rápido. Profissão e Indicado por de cada um vieram prontos da planilha.</p>
+        ` : ""}
+        <div class="lista-preview-importacao">
+          ${contatos.map((c, i) => `
+            <div class="preview-importacao-item">
+              <div style="flex:1;">
+                <div class="preview-importacao-nome">${c.nome ? escapeAttr(c.nome) : "(sem nome)"}</div>
+                <div class="preview-importacao-tel">${escapeAttr(c.telefone)}</div>
+                ${contatos.length <= 80 ? `<input type="text" class="input-profissao-lote" data-indice="${i}" list="listaProfissoesLote" value="${escapeAttr(c.profissao || "")}" placeholder="Profissão (opcional)" ${estado.importarLoteEnviando ? "disabled" : ""}>` : ""}
+              </div>
+              ${!estado.importarLoteEnviando ? `<button type="button" class="preview-importacao-remover" data-indice="${i}" aria-label="Remover">✕</button>` : ""}
+            </div>
+          `).join("")}
+        </div>
+        <datalist id="listaProfissoesLote">
+          ${(estado.opcoes.profissao || []).filter(o => o !== "").map(o => `<option value="${escapeAttr(o)}"></option>`).join("")}
+        </datalist>
+
+        <div style="height:14px;"></div>
+        <div class="mensagem-whatsapp-titulo">Aplicar a quem estiver em branco</div>
+        <div class="detail-field"><div class="k">Indicado por</div>
+          <input type="text" id="loteIndicadoPor" value="${escapeAttr(estado.importarLoteIndicadoPor)}" placeholder="Nome + telefone de quem indicou" ${estado.importarLoteEnviando ? "disabled" : ""}>
+        </div>
+        <div class="detail-field"><div class="k">Referido</div>
+          <select id="loteReferido" ${estado.importarLoteEnviando ? "disabled" : ""}>
+            ${(estado.opcoes.referidos || [""]).map(o => `<option value="${escapeAttr(o)}" ${o === estado.importarLoteReferido ? "selected" : ""}>${o === "" ? "(em branco)" : o}</option>`).join("")}
+          </select>
+        </div>
+
+        <p style="color:var(--ink-faint);font-size:11.5px;margin:6px 0 0;">Status Comercial e Status do Contato ficam em branco automaticamente, por serem contatos novos.</p>
+
+        <div style="height:14px;"></div>
+        <button class="btn primary" id="btnConfirmarImportacao" style="width:100%;" ${estado.importarLoteEnviando ? "disabled" : ""}>
+          ${estado.importarLoteEnviando ? `Importando... (${estado.importarLoteProgresso}/${contatos.length})` : `Importar ${contatos.length} contato${contatos.length === 1 ? "" : "s"}`}
+        </button>
+      ` : ""}
+    </div>
+  `;
+
+  document.getElementById("fecharSheet").addEventListener("click", fecharImportarLote);
+  document.getElementById("btnProcessarColado").addEventListener("click", processarTextoColadoLote);
+  document.getElementById("btnImportarGoogle").addEventListener("click", iniciarImportarGoogleContatos);
+
+  document.querySelectorAll(".preview-importacao-remover").forEach(btn => {
+    btn.addEventListener("click", () => removerContatoDoLote(Number(btn.dataset.indice)));
+  });
+
+  document.querySelectorAll(".input-profissao-lote").forEach(input => {
+    input.addEventListener("input", e => atualizarProfissaoDoLote(Number(e.target.dataset.indice), e.target.value));
+  });
+
+  const inputIndicadoPor = document.getElementById("loteIndicadoPor");
+  if(inputIndicadoPor) inputIndicadoPor.addEventListener("input", e => { estado.importarLoteIndicadoPor = e.target.value; });
+
+  const selectReferido = document.getElementById("loteReferido");
+  if(selectReferido) selectReferido.addEventListener("change", e => { estado.importarLoteReferido = e.target.value; });
+
+  const btnConfirmar = document.getElementById("btnConfirmarImportacao");
+  if(btnConfirmar) btnConfirmar.addEventListener("click", confirmarImportacaoLote);
+}
 
 function abrirTelaManutencao(){
   estado.naTelaManutencao = true;
