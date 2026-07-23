@@ -63,6 +63,38 @@
   .status-comercial-inline.salvando{ opacity:.5; }
   .mensagem-whatsapp-box{ background:#F7F5EF; border:1px solid #E5E0D2; border-radius:12px; padding:12px; }
   .mensagem-whatsapp-titulo{ font-weight:600; font-size:13.5px; margin-bottom:4px; }
+  .campo-com-microfone{ display:flex; align-items:flex-start; gap:6px; }
+  .campo-com-microfone textarea{ flex:1; min-width:0; }
+  .btn-microfone{
+    flex-shrink:0; width:34px; height:34px; border-radius:50%; border:1px solid #DAD5C8;
+    background:#fff; color:var(--ink-soft); display:flex; align-items:center; justify-content:center;
+    cursor:pointer; margin-top:2px;
+  }
+  .btn-microfone.ouvindo{ background:#E4453A; border-color:#E4453A; color:#fff; animation: pulsarMicrofone 1.1s infinite; }
+  @keyframes pulsarMicrofone{ 0%{ box-shadow:0 0 0 0 rgba(228,69,58,.5); } 100%{ box-shadow:0 0 0 8px rgba(228,69,58,0); } }
+  .gerenciar-lista-campo{ margin-bottom: 14px; }
+  .gerenciar-lista-titulo{ font-weight:600; font-size:12.5px; margin-bottom:6px; color:var(--ink); }
+  .chips-opcoes{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
+  .chip-opcao{
+    display:inline-flex; align-items:center; gap:5px; background:#fff; border:1px solid #DAD5C8;
+    border-radius:999px; padding:4px 4px 4px 10px; font-size:12px; color:var(--ink);
+  }
+  .chip-opcao-excluir{
+    border:none; background:#EFE9DA; color:var(--ink-soft); width:18px; height:18px; border-radius:50%;
+    font-size:11px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  }
+  .chip-opcao-excluir:hover{ background:#E4453A; color:#fff; }
+  .add-opcao-row{ display:flex; gap:6px; }
+  .add-opcao-row input{ flex:1; min-width:0; border:1px solid #DAD5C8; border-radius:8px; padding:6px 8px; font-size:12.5px; }
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center;
+    z-index:999; padding:20px;
+  }
+  .modal-caixa{ background:#fff; border-radius:14px; padding:18px; max-width:360px; width:100%; }
+  .modal-caixa h3{ margin:0 0 8px; font-size:16px; }
+  .modal-caixa p{ font-size:13px; color:var(--ink-soft); line-height:1.4; margin:0 0 10px; }
+  .modal-caixa select{ width:100%; border:1px solid #DAD5C8; border-radius:8px; padding:7px 8px; font-size:13px; margin-bottom:12px; }
+  .modal-acoes{ display:flex; justify-content:flex-end; gap:8px; }
   .topbar .sub{ font-size: 12.5px; opacity: .78; margin-top: 4px; margin-left: 65px; }
   .btn-add{ width: 32px; height: 32px; flex-shrink: 0; border-radius: 50%; border: none; background: rgba(255,255,255,.18); color: #fff; font-size: 18px; line-height: 1; display: flex; align-items: center; justify-content: center; }
   .btn-add:active{ background: rgba(255,255,255,.3); }
@@ -461,7 +493,7 @@ function mostrarToast(msg){
 }
 
 const CHAVE_MENSAGEM_WHATSAPP = "mensagemWhatsappTemplate";
-const MENSAGEM_WHATSAPP_PADRAO = "Oi {nome}, tudo bem? Aqui é o Drago da Wise Up!";
+const MENSAGEM_WHATSAPP_PADRAO = "Oi {nome}, {periodo}! Aqui é o Drago da Wise Up!";
 
 function obterMensagemWhatsappTemplate(){
   try{
@@ -484,6 +516,13 @@ function primeiroNomeDe(textoCompleto){
   return String(textoCompleto || "").trim().split(" ")[0] || "";
 }
 
+function periodoDoDiaAtual(){
+  const hora = new Date().getHours();
+  if(hora >= 5 && hora < 12) return "Bom dia";
+  if(hora >= 12 && hora < 18) return "Boa tarde";
+  return "Boa noite";
+}
+
 function linkWhatsapp(telefone, nome, indicadoPor){
   const digitos = String(telefone || "").replace(/\D/g, "");
   if(digitos === "") return "#";
@@ -491,7 +530,8 @@ function linkWhatsapp(telefone, nome, indicadoPor){
   const template = obterMensagemWhatsappTemplate();
   const mensagem = template
     .replace(/\{nome\}/gi, primeiroNomeDe(nome))
-    .replace(/\{indicado_por\}/gi, primeiroNomeDe(indicadoPor));
+    .replace(/\{indicado_por\}/gi, primeiroNomeDe(indicadoPor))
+    .replace(/\{periodo\}/gi, periodoDoDiaAtual());
 
   return "https://wa.me/" + digitos + "?text=" + encodeURIComponent(mensagem);
 }
@@ -503,6 +543,79 @@ function valorOuBranco(v){
 function iconInfo(){
   return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16.5"/><circle cx="12" cy="7.7" r="0.9" fill="currentColor" stroke="none"/></svg>';
 }
+function iconMicrofone(){
+  return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>`;
+}
+
+/* ============================================================
+ * DITADO POR VOZ (Observação do Contato / Observação do Indicado
+ * por) — usa a Web Speech API nativa do navegador (Chrome/Android).
+ * Ao clicar no microfone, começa a ouvir e vai inserindo o texto
+ * reconhecido no campo; clicar de novo (ou o navegador detectar
+ * silêncio) para. O campo continua 100% editável por teclado
+ * normalmente, o microfone é só um jeito a mais de preencher.
+ * ============================================================ */
+let reconhecimentoVozAtivo = null;
+let botaoMicrofoneAtivo = null;
+
+function alternarDitadoPorVoz(botao){
+  const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  if(!SpeechRecognitionAPI){
+    mostrarToast("Seu navegador não tem suporte a ditado por voz. Tente pelo Chrome.");
+    return;
+  }
+
+  // Se já está ouvindo (nesse ou em outro campo), clicar de novo para.
+  if(reconhecimentoVozAtivo){
+    reconhecimentoVozAtivo.stop();
+    return;
+  }
+
+  const idCampoAlvo = botao.dataset.campoAlvo;
+  const campo = document.getElementById(idCampoAlvo);
+  if(!campo) return;
+
+  const reconhecimento = new SpeechRecognitionAPI();
+  reconhecimento.lang = "pt-BR";
+  reconhecimento.continuous = true;
+  reconhecimento.interimResults = false;
+
+  const textoOriginal = campo.value;
+  let textoAdicionado = "";
+
+  reconhecimento.onresult = (evento) => {
+    let novoTrecho = "";
+    for(let i = evento.resultIndex; i < evento.results.length; i++){
+      if(evento.results[i].isFinal){
+        novoTrecho += evento.results[i][0].transcript;
+      }
+    }
+    if(novoTrecho.trim() !== ""){
+      textoAdicionado += (textoAdicionado ? " " : "") + novoTrecho.trim();
+      const separador = textoOriginal.trim() !== "" ? " " : "";
+      campo.value = textoOriginal + separador + textoAdicionado;
+    }
+  };
+
+  reconhecimento.onerror = (evento) => {
+    if(evento.error !== "no-speech" && evento.error !== "aborted"){
+      mostrarToast("Erro no ditado por voz: " + evento.error);
+    }
+  };
+
+  reconhecimento.onend = () => {
+    botao.classList.remove("ouvindo");
+    reconhecimentoVozAtivo = null;
+    botaoMicrofoneAtivo = null;
+  };
+
+  reconhecimento.start();
+  botao.classList.add("ouvindo");
+  reconhecimentoVozAtivo = reconhecimento;
+  botaoMicrofoneAtivo = botao;
+}
+
 function iconWhatsapp(){
   return '<svg viewBox="0 0 32 32" fill="#fff"><path d="M16 3C9 3 3.3 8.7 3.3 15.7c0 2.4.7 4.7 1.9 6.7L3 29l6.8-2.1c1.9 1 4 1.6 6.2 1.6 7 0 12.7-5.7 12.7-12.7C28.7 8.7 23 3 16 3zm0 23.1c-2 0-3.9-.5-5.5-1.5l-.4-.2-4 1.2 1.2-3.9-.3-.4a10.3 10.3 0 0 1-1.6-5.6C5.4 9.8 10.1 5.1 16 5.1c5.9 0 10.6 4.7 10.6 10.6S21.9 26.1 16 26.1zm5.8-7.9c-.3-.2-1.9-.9-2.1-1-.3-.1-.5-.2-.7.2-.2.3-.8 1-1 1.2-.2.2-.4.2-.7.1-.3-.2-1.3-.5-2.5-1.5-.9-.8-1.5-1.8-1.7-2.1-.2-.3 0-.5.1-.7.1-.1.3-.4.5-.5.1-.2.2-.3.3-.5.1-.2 0-.4 0-.5C13 12.7 12.4 11 12.1 10.4c-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.4s1.1 2.8 1.2 3c.1.2 2.1 3.2 5.1 4.5.7.3 1.3.5 1.7.6.7.2 1.4.2 1.9.1.6-.1 1.9-.8 2.1-1.5.3-.7.3-1.3.2-1.5-.1-.1-.3-.2-.6-.4z"/></svg>';
 }
@@ -863,7 +976,7 @@ function renderListaEContagem(){
   if(!lista) return;
 
   if(carregando && totalCarregado === 0){
-    lista.innerHTML = `<div class="loading">Carregando contatos da planilha...</div>`;
+    lista.innerHTML = `<div class="loading">Carregando matrículas</div>`;
     return;
   }
 
@@ -946,6 +1059,9 @@ function handleCliqueNaLista(e){
   if(e.target.closest("[data-acao='cancelar-form-agendamento']")){ cancelarFormAgendamentoCard(linha); return; }
   if(e.target.closest("[data-acao='confirmar-agendamento']")){ confirmarAgendamentoCard(aba, linha); return; }
   if(e.target.closest("[data-acao='cancelar-agendamento']")){ cancelarAgendamentoCard(aba, linha); return; }
+
+  const btnMicrofone = e.target.closest(".btn-microfone");
+  if(btnMicrofone){ alternarDitadoPorVoz(btnMicrofone); return; }
 }
 
 /* ============================================================
@@ -1118,9 +1234,21 @@ function cardInnerHtmlEdicao(c, ui){
     <input type="text" class="input-tel-inline" data-campo="TELEFONE" value="${escapeAttr(d.TELEFONE)}" placeholder="Telefone">
     <div class="card-extra" style="display:block;">
       ${ui.erroSalvar ? `<div class="aviso-erro">${ui.erroSalvar}</div>` : ""}
-      <div class="detail-field"><div class="k">Observação do Contato</div><textarea data-campo="OBSERVACAO">${d.OBSERVACAO || ""}</textarea></div>
+      <div class="detail-field">
+        <div class="k">Observação do Contato</div>
+        <div class="campo-com-microfone">
+          <textarea data-campo="OBSERVACAO" id="campoObservacao-${c.linha}">${d.OBSERVACAO || ""}</textarea>
+          <button type="button" class="btn-microfone" data-campo-alvo="campoObservacao-${c.linha}" aria-label="Ditar por voz">${iconMicrofone()}</button>
+        </div>
+      </div>
       <div class="detail-field"><div class="k">Indicado por</div><input type="text" data-campo="INDICADO_POR" value="${escapeAttr(d.INDICADO_POR)}"></div>
-      <div class="detail-field"><div class="k">Observação do Indicado por</div><textarea data-campo="OBSERVACAO_INDICADO">${d.OBSERVACAO_INDICADO || ""}</textarea></div>
+      <div class="detail-field">
+        <div class="k">Observação do Indicado por</div>
+        <div class="campo-com-microfone">
+          <textarea data-campo="OBSERVACAO_INDICADO" id="campoObservacaoIndicado-${c.linha}">${d.OBSERVACAO_INDICADO || ""}</textarea>
+          <button type="button" class="btn-microfone" data-campo-alvo="campoObservacaoIndicado-${c.linha}" aria-label="Ditar por voz">${iconMicrofone()}</button>
+        </div>
+      </div>
       <div class="detail-field"><div class="k">Referido</div>
         <select data-campo="REFERIDOS">${(estado.opcoes.referidos || [""]).map(o => `<option value="${o}" ${o === (c.REFERIDOS || "") ? "selected" : ""}>${o === "" ? "(em branco)" : o}</option>`).join("")}</select>
       </div>
@@ -1646,12 +1774,31 @@ function renderTelaManutencao(){
       <div class="mensagem-whatsapp-box">
         <div class="mensagem-whatsapp-titulo">Mensagem padrão do WhatsApp</div>
         <p style="color:var(--ink-faint);font-size:12px;margin:0 0 8px;">
-          Use <b>{nome}</b> e <b>{indicado_por}</b> em qualquer lugar do texto — eles são trocados automaticamente pelo primeiro nome do contato e de quem indicou. Essa mensagem é usada sempre que você clica no botão do WhatsApp na lista.
+          Use <b>{nome}</b>, <b>{indicado_por}</b> e <b>{periodo}</b> em qualquer lugar do texto — são trocados automaticamente pelo primeiro nome do contato, o primeiro nome de quem indicou, e "Bom dia" / "Boa tarde" / "Boa noite" conforme o horário atual. Essa mensagem é usada sempre que você clica no botão do WhatsApp na lista.
         </p>
         <textarea id="mensagemWhatsappInput" rows="3" style="width:100%;box-sizing:border-box;border:1px solid #DAD5C8;border-radius:10px;padding:8px 10px;font-size:13px;font-family:inherit;resize:vertical;">${escapeAttr(obterMensagemWhatsappTemplate())}</textarea>
         <button class="btn ghost" id="salvarMensagemWhatsapp" style="margin-top:8px;">Salvar mensagem</button>
       </div>
 
+      <div style="height:16px;"></div>
+
+      <div class="mensagem-whatsapp-box">
+        <div class="mensagem-whatsapp-titulo">Exportar contatos</div>
+        <p style="color:var(--ink-faint);font-size:12px;margin:0 0 8px;">
+          Baixa uma planilha (.csv, abre no Excel/Google Sheets) com todas as informações de todos os contatos carregados no momento.
+        </p>
+        <button class="btn ghost" id="baixarPlanilhaContatos">Baixar planilha de contatos</button>
+      </div>
+
+      <div style="height:16px;"></div>
+
+      <div class="mensagem-whatsapp-box">
+        <div class="mensagem-whatsapp-titulo">Gerenciar listas de opções</div>
+        <p style="color:var(--ink-faint);font-size:12px;margin:0 0 10px;">
+          Adicione ou remova as opções de cada lista suspensa. Ao remover uma opção que já está em uso, você escolhe pra qual outra opção transferir os contatos (ou deixar em branco).
+        </p>
+        ${["referidos", "statusComercial", "statusComportamental", "profissao"].map(renderGerenciarListaCampo).join("")}
+      </div>
     </div>
   `;
 
@@ -1662,6 +1809,191 @@ function renderTelaManutencao(){
     salvarMensagemWhatsappTemplate(texto);
     mostrarToast("Mensagem do WhatsApp salva");
   });
+
+  document.getElementById("baixarPlanilhaContatos").addEventListener("click", baixarPlanilhaDeContatos);
+
+  ["referidos", "statusComercial", "statusComportamental", "profissao"].forEach(chaveApp => {
+    const botaoAdd = document.getElementById("addOpcao-" + chaveApp);
+    const input = document.getElementById("inputOpcao-" + chaveApp);
+    if(botaoAdd && input){
+      const adicionar = () => adicionarOpcaoConfig(chaveApp, input);
+      botaoAdd.addEventListener("click", adicionar);
+      input.addEventListener("keydown", e => { if(e.key === "Enter"){ e.preventDefault(); adicionar(); } });
+    }
+  });
+
+  document.querySelectorAll(".chip-opcao-excluir").forEach(btn => {
+    btn.addEventListener("click", () => abrirModalExcluirOpcao(btn.dataset.campo, btn.dataset.valor));
+  });
+}
+
+const ROTULO_CAMPO_OPCOES = {
+  referidos: "Referido",
+  statusComercial: "Status Comercial",
+  statusComportamental: "Status do Contato",
+  profissao: "Profissão"
+};
+
+function renderGerenciarListaCampo(chaveApp){
+  const opcoes = (estado.opcoes[chaveApp] || []).filter(o => o !== "");
+  return `
+    <div class="gerenciar-lista-campo">
+      <div class="gerenciar-lista-titulo">${ROTULO_CAMPO_OPCOES[chaveApp]}</div>
+      <div class="chips-opcoes">
+        ${opcoes.length === 0 ? `<span style="color:var(--ink-faint);font-size:12px;">Nenhuma opção cadastrada ainda.</span>` : opcoes.map(o => `
+          <span class="chip-opcao">
+            ${escapeAttr(o)}
+            <button type="button" class="chip-opcao-excluir" data-campo="${chaveApp}" data-valor="${escapeAttr(o)}" aria-label="Excluir opção">✕</button>
+          </span>
+        `).join("")}
+      </div>
+      <div class="add-opcao-row">
+        <input type="text" id="inputOpcao-${chaveApp}" placeholder="Nova opção...">
+        <button type="button" class="btn ghost" id="addOpcao-${chaveApp}">Adicionar</button>
+      </div>
+    </div>
+  `;
+}
+
+async function adicionarOpcaoConfig(chaveApp, input){
+  const valor = input.value.trim();
+  if(valor === "") return;
+
+  try{
+    await apiAdicionarOpcao(chaveApp, valor);
+    if(!estado.opcoes[chaveApp].includes(valor)){
+      estado.opcoes[chaveApp].push(valor);
+      estado.opcoes[chaveApp].sort((a,b) => a.localeCompare(b));
+    }
+    input.value = "";
+    renderTelaManutencao();
+    mostrarToast("Opção adicionada");
+  }catch(err){
+    mostrarToast("Erro ao adicionar: " + err.message);
+  }
+}
+
+async function abrirModalExcluirOpcao(chaveApp, valor){
+  let quantidadeEmUso = 0;
+  try{
+    quantidadeEmUso = await apiContarUsoOpcao(chaveApp, valor);
+  }catch(err){
+    mostrarToast("Erro ao verificar uso da opção: " + err.message);
+    return;
+  }
+
+  const outrasOpcoes = (estado.opcoes[chaveApp] || []).filter(o => o !== "" && o !== valor);
+
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.id = "modalExcluirOpcao";
+  overlay.innerHTML = `
+    <div class="modal-caixa">
+      <h3>Excluir opção "${escapeAttr(valor)}"?</h3>
+      ${quantidadeEmUso > 0 ? `
+        <p>Essa opção está atribuída a <b>${quantidadeEmUso}</b> contato${quantidadeEmUso === 1 ? "" : "s"}. Escolha pra qual opção transferir esses contatos, ou deixe em branco:</p>
+        <select id="selectNovaOpcao">
+          <option value="">(deixar em branco)</option>
+          ${outrasOpcoes.map(o => `<option value="${escapeAttr(o)}">${escapeAttr(o)}</option>`).join("")}
+        </select>
+      ` : `<p>Essa opção não está em uso por nenhum contato no momento.</p>`}
+      <div class="modal-acoes">
+        <button class="btn ghost" id="cancelarExclusaoOpcao">Cancelar</button>
+        <button class="btn danger" id="confirmarExclusaoOpcao">Excluir</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  document.getElementById("cancelarExclusaoOpcao").addEventListener("click", () => overlay.remove());
+
+  document.getElementById("confirmarExclusaoOpcao").addEventListener("click", async () => {
+    const selectNovaOpcao = document.getElementById("selectNovaOpcao");
+    const novoValor = selectNovaOpcao ? selectNovaOpcao.value : "";
+
+    try{
+      await apiExcluirOpcao(chaveApp, valor, novoValor);
+
+      // Atualiza os contatos já carregados em memória, sem precisar
+      // recarregar tudo da rede.
+      const campoDb = { referidos: "REFERIDOS", statusComercial: "STATUS_COMERCIAL", statusComportamental: "STATUS_COMPORTAMENTAL", profissao: "PROFISSAO" }[chaveApp];
+      estado.contatos.forEach(c => {
+        if(c[campoDb] === valor) c[campoDb] = novoValor || "";
+      });
+
+      estado.opcoes[chaveApp] = (estado.opcoes[chaveApp] || []).filter(o => o !== valor);
+
+      overlay.remove();
+      renderTelaManutencao();
+      renderListaEContagem();
+      mostrarToast("Opção excluída" + (quantidadeEmUso > 0 ? " e contatos atualizados" : ""));
+    }catch(err){
+      mostrarToast("Erro ao excluir: " + err.message);
+    }
+  });
+}
+
+/* ============================================================
+ * EXPORTAR CONTATOS EM PLANILHA (.csv)
+ * ============================================================ */
+const COLUNAS_EXPORTACAO = [
+  { chave: "NOME", rotulo: "Nome" },
+  { chave: "TELEFONE", rotulo: "Telefone" },
+  { chave: "INDICADO_POR", rotulo: "Indicado por" },
+  { chave: "STATUS_COMERCIAL", rotulo: "Status Comercial" },
+  { chave: "STATUS_COMPORTAMENTAL", rotulo: "Status do Contato" },
+  { chave: "REFERIDOS", rotulo: "Referido" },
+  { chave: "PROFISSAO", rotulo: "Profissão" },
+  { chave: "FUSO", rotulo: "Fuso" },
+  { chave: "PAIS", rotulo: "País" },
+  { chave: "REGIAO", rotulo: "Região" },
+  { chave: "OBSERVACAO", rotulo: "Observação do Contato" },
+  { chave: "OBSERVACAO_INDICADO", rotulo: "Observação do Indicado por" },
+  { chave: "REGISTRO_TELEFONE", rotulo: "Data do Telefone" },
+  { chave: "REGISTRO_STATUS_COMERCIAL", rotulo: "Data do Status Comercial" },
+  { chave: "REGISTRO_STATUS_COMPORTAMENTAL", rotulo: "Data do Status do Contato" },
+  { chave: "AGENDAMENTO", rotulo: "Agendamento" }
+];
+
+function escaparCampoCsv(valor){
+  const texto = String(valor === null || valor === undefined ? "" : valor);
+  if(texto.indexOf(";") !== -1 || texto.indexOf("\"") !== -1 || texto.indexOf("\n") !== -1){
+    return '"' + texto.replace(/"/g, '""') + '"';
+  }
+  return texto;
+}
+
+function baixarPlanilhaDeContatos(){
+  if(!estado.contatos || estado.contatos.length === 0){
+    mostrarToast("Nenhum contato carregado ainda pra exportar.");
+    return;
+  }
+
+  const cabecalho = COLUNAS_EXPORTACAO.map(c => c.rotulo).join(";");
+  const linhasCsv = estado.contatos.map(c =>
+    COLUNAS_EXPORTACAO.map(col => escaparCampoCsv(c[col.chave])).join(";")
+  );
+
+  // ";" como separador (padrão do Excel em português) + BOM UTF-8 no
+  // início, pra acentos aparecerem corretos ao abrir no Excel.
+  const conteudo = "\uFEFF" + cabecalho + "\n" + linhasCsv.join("\n");
+
+  const blob = new Blob([conteudo], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+
+  const dataHoje = new Date();
+  const pad = n => String(n).padStart(2, "0");
+  const nomeArquivo = `contatos-matriculas-${dataHoje.getFullYear()}${pad(dataHoje.getMonth()+1)}${pad(dataHoje.getDate())}.csv`;
+
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = nomeArquivo;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+
+  mostrarToast(`Planilha baixada (${estado.contatos.length} contatos)`);
 }
 
 async function rodarFuncaoManutencao(chave){
