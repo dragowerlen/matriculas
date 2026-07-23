@@ -132,25 +132,106 @@ async function apiListar(aba){
 }
 
 /* ============================================================
- * apiOpcoes — valores distintos usados nos <select>/filtros.
- * Usa a função "valores_distintos" criada no politicas-rls.sql.
+ * apiOpcoes — lê da tabela "opcoes_lista" (não mais dos valores
+ * distintos dos contatos), pra permitir criar uma opção nova antes
+ * de qualquer contato usá-la.
  * ============================================================ */
+const MAPA_CAMPO_OPCOES = {
+  statusComercial: "status_comercial",
+  statusComportamental: "status_contato",
+  profissao: "profissao",
+  referidos: "referido"
+};
+
 async function apiOpcoes(){
-  async function distintos(coluna){
-    const { data, error } = await supabaseClient.rpc("valores_distintos", { nome_coluna: coluna });
-    if(error) throw new Error(error.message);
-    const valores = (data || []).map(r => r.valor).filter(v => v !== null && v !== "");
-    return [""].concat(valores.sort());
-  }
+  const { data, error } = await supabaseClient
+    .from("opcoes_lista")
+    .select("campo, valor")
+    .order("valor", { ascending: true });
 
-  const [statusComercial, statusComportamental, profissao, referidos] = await Promise.all([
-    distintos("status_comercial"),
-    distintos("status_contato"),
-    distintos("profissao"),
-    distintos("referido")
-  ]);
+  if(error) throw new Error(error.message);
 
-  return { statusComercial, statusComportamental, profissao, referidos };
+  const porCampo = {};
+  Object.values(MAPA_CAMPO_OPCOES).forEach(c => porCampo[c] = []);
+  (data || []).forEach(linha => {
+    if(porCampo[linha.campo]) porCampo[linha.campo].push(linha.valor);
+  });
+
+  const resultado = {};
+  Object.keys(MAPA_CAMPO_OPCOES).forEach(chaveApp => {
+    resultado[chaveApp] = [""].concat(porCampo[MAPA_CAMPO_OPCOES[chaveApp]]);
+  });
+
+  return resultado;
+}
+
+/**
+ * Adiciona uma opção nova numa das 4 listas. Não dá erro se a opção
+ * já existir (só não duplica).
+ */
+async function apiAdicionarOpcao(chaveApp, valor){
+  const campo = MAPA_CAMPO_OPCOES[chaveApp];
+  if(!campo) throw new Error("Campo desconhecido: " + chaveApp);
+
+  const valorLimpo = String(valor || "").trim();
+  if(valorLimpo === "") throw new Error("Digite um valor.");
+
+  const { error } = await supabaseClient
+    .from("opcoes_lista")
+    .insert({ campo, valor: valorLimpo });
+
+  // erro de duplicata (já existe) não é um problema de verdade
+  if(error && error.code !== "23505") throw new Error(error.message);
+
+  return { sucesso: true };
+}
+
+/**
+ * Conta quantos contatos usam um determinado valor num campo —
+ * usado pra decidir se precisa perguntar a reatribuição antes de
+ * excluir a opção.
+ */
+async function apiContarUsoOpcao(chaveApp, valor){
+  const campo = MAPA_CAMPO_OPCOES[chaveApp];
+  if(!campo) throw new Error("Campo desconhecido: " + chaveApp);
+
+  const { count, error } = await supabaseClient
+    .from("contatos")
+    .select("id", { count: "exact", head: true })
+    .eq(campo, valor);
+
+  if(error) throw new Error(error.message);
+  return count || 0;
+}
+
+/**
+ * Exclui uma opção de uma lista. Se novoValor for informado, todos
+ * os contatos que usavam a opção antiga passam a usar o novoValor
+ * (ou ficam em branco, se novoValor for "" / null).
+ */
+async function apiExcluirOpcao(chaveApp, valorAntigo, novoValor){
+  const campo = MAPA_CAMPO_OPCOES[chaveApp];
+  if(!campo) throw new Error("Campo desconhecido: " + chaveApp);
+
+  // Reatribui os contatos que usavam essa opção
+  const valorFinal = (novoValor === undefined || novoValor === null) ? null : (String(novoValor).trim() || null);
+  const { error: erroUpdate } = await supabaseClient
+    .from("contatos")
+    .update({ [campo]: valorFinal })
+    .eq(campo, valorAntigo);
+
+  if(erroUpdate) throw new Error(erroUpdate.message);
+
+  // Remove a opção da lista
+  const { error: erroDelete } = await supabaseClient
+    .from("opcoes_lista")
+    .delete()
+    .eq("campo", campo)
+    .eq("valor", valorAntigo);
+
+  if(erroDelete) throw new Error(erroDelete.message);
+
+  return { sucesso: true };
 }
 
 /* ============================================================
@@ -226,7 +307,26 @@ async function apiAtualizar(aba, linha, dados){
 
   if(error) throw new Error(error.message);
 
+  await sincronizarOpcoesNovas(dados);
+
   return { sucesso: true };
+}
+
+/**
+ * Se algum dos campos de lista suspensa (Profissão, Referido, Status
+ * Comercial, Status do Contato) recebeu um valor novo — que ainda
+ * não está na lista de opções — adiciona ele automaticamente, igual
+ * o Apps Script fazia com garantirListaCompleta().
+ */
+async function sincronizarOpcoesNovas(dados){
+  const camposDeLista = { PROFISSAO: "profissao", REFERIDOS: "referidos", STATUS_COMERCIAL: "statusComercial", STATUS_COMPORTAMENTAL: "statusComportamental" };
+  for(const chaveApp of Object.keys(camposDeLista)){
+    if(!dados.hasOwnProperty(chaveApp)) continue;
+    const valor = String(dados[chaveApp] || "").trim();
+    if(valor === "") continue;
+    try{ await apiAdicionarOpcao(camposDeLista[chaveApp], valor); }
+    catch(e){ /* não trava o salvamento do contato por causa disso */ }
+  }
 }
 
 function hojeBr(){
@@ -264,6 +364,8 @@ async function apiCriar(aba, dados){
     .single();
 
   if(error) throw new Error(error.message);
+
+  await sincronizarOpcoesNovas(dados);
 
   return { sucesso: true, linha: data.id, aba };
 }
