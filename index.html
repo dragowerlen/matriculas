@@ -142,16 +142,6 @@
 
   .filtros-valores-vazio{ color:var(--ink-faint); font-size:12.5px; padding:14px 4px; }
 
-  .select-filtro-linha{ display:flex; align-items:stretch; gap:8px; margin:4px 0 0; }
-  .select-filtro{ flex:1; min-width:0; }
-  .select-filtro-botao{
-    width:100%; height:100%; box-sizing:border-box; display:flex; align-items:center; justify-content:space-between; gap:6px;
-    border:1.6px solid var(--ink); border-radius:14px; background:var(--bg);
-    padding:11px 12px; font-size:12px; font-weight:500; color:var(--ink); text-align:left;
-  }
-  .select-filtro-botao span{ white-space:normal; line-height:1.25; word-break:break-word; }
-  .select-filtro-botao svg{ width:16px; height:16px; flex-shrink:0; transition:transform .15s; color:var(--ink); }
-  .select-filtro-botao.aberto svg{ transform:rotate(180deg); }
   .dropdown-filtro-inline{
     margin-top:8px; background:#fff; border:1.4px solid var(--border); border-radius:var(--radius-sm);
     box-shadow:0 2px 8px rgba(0,0,0,.06); max-height:280px; overflow-y:auto; padding:4px;
@@ -398,8 +388,6 @@ const estado = {
   busca: "",
   mostrarMenuTopo: false,
   filtroCategoriaAtiva: null,
-  filtroCategoriaDropdownAberto: false,
-  filtroValoresDropdownAberto: false,
   naTelaFiltro: false,
   buscaAberta: false,
   filtros: {},
@@ -1013,22 +1001,12 @@ function renderTudo(){
 }
 
 /* ============================================================
- * TELA DE FILTRO — abre como as demais telas do menu (sheet),
- * com dois seletores lado a lado: Categoria e Valores. Marcar ou
- * desmarcar uma opção já aplica o filtro na hora, sem precisar de
- * "Aplicar" nem "Limpar" por categoria.
+ * TELA DE FILTRO — abre como as demais telas do menu (sheet).
+ * Opções em forma de botão, em 4 linhas de 3. Tocar num botão
+ * expande as opções dele logo abaixo (marcar/desmarcar já aplica
+ * o filtro na hora, sem precisar de "Aplicar").
  * ============================================================ */
-function itensCategoriaFiltro(){
-  return [
-    ...CAMPOS_FILTRO.map(f => ({ ...f, tipo: "checklist" })),
-    ...CAMPOS_FILTRO_DATA.map(f => ({ ...f, tipo: "data" }))
-  ];
-}
-
 function abrirTelaFiltro(){
-  if(!estado.filtroCategoriaAtiva) estado.filtroCategoriaAtiva = itensCategoriaFiltro()[0].chave;
-  estado.filtroCategoriaDropdownAberto = false;
-  estado.filtroValoresDropdownAberto = false;
   estado.naTelaFiltro = true;
   renderTelaFiltro();
   abrirSheetElemento();
@@ -1036,21 +1014,19 @@ function abrirTelaFiltro(){
 
 function fecharTelaFiltro(){
   estado.naTelaFiltro = false;
-  estado.filtroCategoriaDropdownAberto = false;
-  estado.filtroValoresDropdownAberto = false;
   fecharSheet();
 }
 
-function renderConteudoDropdownValores(itemAtivo){
-  if(itemAtivo.tipo === "checklist"){
-    const contagens = opcoesDisponiveis(itemAtivo.chave);
-    const valores = ordenarValoresFiltro(itemAtivo.chave, Object.keys(contagens));
-    const selecionados = estado.filtros[itemAtivo.chave];
+function renderConteudoExpandidoFiltro(item){
+  if(item.tipo === "checklist"){
+    const contagens = opcoesDisponiveis(item.chave);
+    const valores = ordenarValoresFiltro(item.chave, Object.keys(contagens));
+    const selecionados = estado.filtros[item.chave];
 
     if(valores.length === 0){
-      return `<div class="dropdown-filtro-inline" id="dropdownValores"><p class="filtros-valores-vazio">Nenhuma opção disponível.</p></div>`;
+      return `<div class="dropdown-filtro-inline"><p class="filtros-valores-vazio">Nenhuma opção disponível.</p></div>`;
     }
-    return `<div class="dropdown-filtro-inline" id="dropdownValores">
+    return `<div class="dropdown-filtro-inline" id="painelFiltroExpandido">
       ${valores.map((v, i) => `
         <div class="check-row">
           <input type="checkbox" id="chkFiltroTela_${i}" ${selecionados.has(v) ? "checked" : ""} data-valor="${encodeURIComponent(v)}">
@@ -1061,25 +1037,34 @@ function renderConteudoDropdownValores(itemAtivo){
     </div>`;
   }
 
-  const valorIso = brParaIso(estado.filtrosData[itemAtivo.chave]);
-  return `<div class="dropdown-filtro-inline" id="dropdownValores" style="padding:10px;">
+  const valorIso = brParaIso(estado.filtrosData[item.chave]);
+  return `<div class="dropdown-filtro-inline" id="painelFiltroExpandido" style="padding:10px;">
     <input type="date" id="inputFiltroDataTela" value="${valorIso}" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:8px;padding:9px 10px;font-size:13px;font-family:inherit;">
   </div>`;
 }
 
 function renderTelaFiltro(){
   const sheet = document.getElementById("sheet");
-  const itensCategoria = itensCategoriaFiltro();
-  const itemAtivo = itensCategoria.find(f => f.chave === estado.filtroCategoriaAtiva) || itensCategoria[0];
   const buscaAtiva = estado.busca.trim() !== "";
 
-  let rotuloValores = "Selecionar";
-  if(itemAtivo.tipo === "checklist"){
-    const n = estado.filtros[itemAtivo.chave].size;
-    rotuloValores = n === 0 ? "Nenhum selecionado" : `${n} selecionado${n === 1 ? "" : "s"}`;
-  } else {
-    rotuloValores = estado.filtrosData[itemAtivo.chave] || "Nenhuma data";
-  }
+  const mapaCampos = {};
+  CAMPOS_FILTRO.forEach(f => mapaCampos[f.chave] = { ...f, tipo: "checklist" });
+  CAMPOS_FILTRO_DATA.forEach(f => mapaCampos[f.chave] = { ...f, tipo: "data" });
+
+  const chipBotao = (chave) => {
+    const f = mapaCampos[chave];
+    const ativa = estado.filtroCategoriaAtiva === chave;
+    let badge = "";
+    if(f.tipo === "checklist"){
+      const n = estado.filtros[chave].size;
+      if(n > 0) badge = ` <span class="n">${n}</span>`;
+    } else if(estado.filtrosData[chave]){
+      badge = ` <span class="n">●</span>`;
+    }
+    return `<button type="button" class="chip grid ${ativa ? "active" : ""}" data-campo="${chave}">${f.rotulo}${badge}</button>`;
+  };
+
+  const temFiltroPraLimpar = algumFiltroAtivo();
 
   sheet.innerHTML = `
     <div class="sheet-handle"></div>
@@ -1087,80 +1072,34 @@ function renderTelaFiltro(){
     <div class="sheet-body">
       ${buscaAtiva ? `<div class="aviso-busca-ativa">Busca ativa: mostrando resultados de "${estado.busca.trim()}" em todos os contatos. Os filtros abaixo estão pausados.</div>` : ""}
 
-      <div class="select-filtro-linha">
-        <div class="select-filtro">
-          <button type="button" class="select-filtro-botao ${estado.filtroCategoriaDropdownAberto ? "aberto" : ""}" id="btnSelectCategoria">
-            <span>${itemAtivo.rotulo}</span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-          </button>
-        </div>
-
-        <div class="select-filtro">
-          <button type="button" class="select-filtro-botao ${estado.filtroValoresDropdownAberto ? "aberto" : ""}" id="btnSelectValores">
-            <span>${rotuloValores}</span>
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-          </button>
-        </div>
-
-        <button type="button" class="btn-icon-claro ${algumFiltroAtivo() ? "ativo" : ""}" id="btnLimparFiltro" aria-label="Limpar filtro" ${algumFiltroAtivo() ? "" : "disabled"}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
+      <div class="filter-grid">${chipBotao("REFERIDOS")}${chipBotao("FUSO")}${chipBotao("PAIS")}</div>
+      <div class="filter-grid">${chipBotao("REGIAO")}${chipBotao("STATUS_COMERCIAL")}${chipBotao("STATUS_COMPORTAMENTAL")}</div>
+      <div class="filter-grid">${chipBotao("PROFISSAO")}${chipBotao("REGISTRO_STATUS_COMERCIAL")}${chipBotao("REGISTRO_STATUS_COMPORTAMENTAL")}</div>
+      <div class="filter-grid">
+        ${chipBotao("REGISTRO_TELEFONE")}${chipBotao("AGENDAMENTO")}
+        <button type="button" class="chip grid ${temFiltroPraLimpar ? "active" : ""}" id="btnLimparFiltro" ${temFiltroPraLimpar ? "" : "disabled"}>Limpar Filtro</button>
       </div>
 
-      ${estado.filtroCategoriaDropdownAberto ? `
-        <div class="dropdown-filtro-inline" id="dropdownCategorias">
-          ${itensCategoria.map(f => {
-            let badge = "";
-            if(f.tipo === "checklist"){
-              const n = estado.filtros[f.chave].size;
-              if(n > 0) badge = ` <span class="n">${n}</span>`;
-            } else if(estado.filtrosData[f.chave]){
-              badge = ` <span class="n">●</span>`;
-            }
-            return `<button type="button" class="item-categoria ${f.chave === itemAtivo.chave ? "ativa" : ""}" data-chave="${f.chave}">${f.rotulo}${badge}</button>`;
-          }).join("")}
-        </div>
-      ` : ""}
+      ${estado.filtroCategoriaAtiva ? renderConteudoExpandidoFiltro(mapaCampos[estado.filtroCategoriaAtiva]) : ""}
 
-      ${estado.filtroValoresDropdownAberto ? renderConteudoDropdownValores(itemAtivo) : ""}
-
-      <p style="color:var(--ink-faint);font-size:11.5px;margin:10px 0 0;">Marcar ou desmarcar uma opção já aplica o filtro na hora.</p>
+      <p style="color:var(--ink-faint);font-size:11.5px;margin:10px 0 0;">Toque num filtro pra ver as opções. Marcar ou desmarcar já aplica na hora.</p>
     </div>
   `;
 
   document.getElementById("fecharSheet").addEventListener("click", fecharTelaFiltro);
 
-  document.getElementById("btnSelectCategoria").addEventListener("click", (e) => {
-    e.stopPropagation();
-    estado.filtroCategoriaDropdownAberto = !estado.filtroCategoriaDropdownAberto;
-    estado.filtroValoresDropdownAberto = false;
-    renderTelaFiltro();
-  });
-
-  document.getElementById("btnSelectValores").addEventListener("click", (e) => {
-    e.stopPropagation();
-    estado.filtroValoresDropdownAberto = !estado.filtroValoresDropdownAberto;
-    estado.filtroCategoriaDropdownAberto = false;
-    renderTelaFiltro();
-  });
-
-  const dropdownCategorias = document.getElementById("dropdownCategorias");
-  if(dropdownCategorias){
-    dropdownCategorias.querySelectorAll(".item-categoria").forEach(btn => {
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        estado.filtroCategoriaAtiva = btn.dataset.chave;
-        estado.filtroCategoriaDropdownAberto = false;
-        estado.filtroValoresDropdownAberto = false;
-        renderTelaFiltro();
-      });
+  sheet.querySelectorAll(".chip[data-campo]").forEach(chip => {
+    chip.addEventListener("click", () => {
+      const chave = chip.dataset.campo;
+      estado.filtroCategoriaAtiva = (estado.filtroCategoriaAtiva === chave) ? null : chave;
+      renderTelaFiltro();
     });
-  }
+  });
 
-  if(estado.filtroValoresDropdownAberto){
+  if(estado.filtroCategoriaAtiva){
+    const itemAtivo = mapaCampos[estado.filtroCategoriaAtiva];
     if(itemAtivo.tipo === "checklist"){
-      document.querySelectorAll("#dropdownValores input[type=checkbox]").forEach(chk => {
-        chk.addEventListener("click", e => e.stopPropagation());
+      document.querySelectorAll("#painelFiltroExpandido input[type=checkbox]").forEach(chk => {
         chk.addEventListener("change", () => {
           const valor = decodeURIComponent(chk.dataset.valor);
           if(chk.checked) estado.filtros[itemAtivo.chave].add(valor); else estado.filtros[itemAtivo.chave].delete(valor);
@@ -1171,7 +1110,6 @@ function renderTelaFiltro(){
     } else {
       const inputData = document.getElementById("inputFiltroDataTela");
       if(inputData){
-        inputData.addEventListener("click", e => e.stopPropagation());
         inputData.addEventListener("change", (e) => {
           estado.filtrosData[itemAtivo.chave] = isoParaBr(e.target.value);
           renderTelaFiltro();
@@ -1185,20 +1123,6 @@ function renderTelaFiltro(){
     limparTodosFiltros();
     renderTelaFiltro();
   });
-
-  if(estado.filtroCategoriaDropdownAberto || estado.filtroValoresDropdownAberto){
-    document.addEventListener("click", fecharDropdownsFiltroAoClicarFora, { once: true });
-  }
-}
-
-function fecharDropdownsFiltroAoClicarFora(e){
-  if(!estado.naTelaFiltro) return;
-  const elementos = ["btnSelectCategoria", "dropdownCategorias", "btnSelectValores", "dropdownValores"]
-    .map(id => document.getElementById(id));
-  if(elementos.some(el => el && el.contains(e.target))) return;
-  estado.filtroCategoriaDropdownAberto = false;
-  estado.filtroValoresDropdownAberto = false;
-  renderTelaFiltro();
 }
 
 /* Limpa todos os filtros ativos (checklist + data) de uma vez, sem
