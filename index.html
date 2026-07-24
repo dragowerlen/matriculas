@@ -140,22 +140,30 @@
   .btn-icon-claro.ativo{ border-color:#E4453A; color:#E4453A; }
   .btn-icon-claro:disabled{ opacity:.4; }
 
-  .filtros-box-topo{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
-  .filtros-box-topo .aviso-busca-ativa{ flex:1; margin-bottom:0; }
-  .filtros-duas-colunas{ display:flex; gap:0; border:1px solid var(--border); border-radius:var(--radius-sm); overflow:hidden; }
-  .filtros-categorias{
-    flex:0 0 42%; max-height:280px; overflow-y:auto; background:var(--bg);
-    border-right:1px solid var(--border); display:flex; flex-direction:column;
-  }
-  .categoria-filtro-item{
-    text-align:left; background:none; border:none; border-bottom:1px solid var(--border);
-    padding:11px 10px; font-size:12.5px; font-weight:500; color:var(--ink-soft);
-  }
-  .categoria-filtro-item.ativa{ background:var(--surface); color:var(--accent); font-weight:600; }
-  .categoria-filtro-item .n{ background:var(--accent); color:#fff; border-radius:999px; font-size:10px; padding:1px 6px; font-weight:600; margin-left:4px; }
-  .filtros-valores{ flex:1; max-height:280px; overflow-y:auto; padding:6px 10px; background:var(--surface); }
   .filtros-valores-vazio{ color:var(--ink-faint); font-size:12.5px; padding:14px 4px; }
-  .filtros-valores .check-row{ padding:9px 2px; font-size:13px; }
+
+  .select-filtro-linha{ display:flex; align-items:center; gap:8px; margin:4px 0 6px; }
+  .select-filtro{ position:relative; flex:1; min-width:0; }
+  .select-filtro-botao{
+    width:100%; display:flex; align-items:center; justify-content:space-between; gap:6px;
+    border:1.6px solid var(--ink); border-radius:14px; background:var(--bg);
+    padding:13px 14px; font-size:12.5px; font-weight:500; color:var(--ink); text-align:left;
+  }
+  .select-filtro-botao span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .select-filtro-botao svg{ width:16px; height:16px; flex-shrink:0; transition:transform .15s; color:var(--ink); }
+  .select-filtro-botao.aberto svg{ transform:rotate(180deg); }
+  .select-filtro-dropdown{
+    position:absolute; top:calc(100% + 6px); left:0; right:0; z-index:30;
+    background:#fff; border:1.4px solid var(--border); border-radius:var(--radius-sm);
+    box-shadow:0 8px 20px rgba(0,0,0,.16); max-height:260px; overflow-y:auto; padding:4px;
+  }
+  .select-filtro-dropdown .item-categoria{
+    display:flex; align-items:center; justify-content:space-between; width:100%; text-align:left;
+    background:none; border:none; padding:11px 10px; font-size:13px; border-radius:8px; color:var(--ink);
+  }
+  .select-filtro-dropdown .item-categoria.ativa{ background:var(--accent-soft); color:var(--accent); font-weight:600; }
+  .select-filtro-dropdown .item-categoria .n{ background:var(--accent); color:#fff; border-radius:999px; font-size:10px; padding:1px 6px; font-weight:600; }
+  .select-filtro-dropdown .check-row{ padding:9px 6px; font-size:13px; }
   .filter-grid{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
   .filter-grid + .filter-grid{ margin-top: 8px; }
   .chip.grid{ width: 100%; justify-content: center; text-align: center; padding: 9px 6px; font-size: 12px; white-space: normal; line-height: 1.25; }
@@ -385,6 +393,9 @@ const estado = {
   busca: "",
   mostrarMenuTopo: false,
   filtroCategoriaAtiva: null,
+  filtroCategoriaDropdownAberto: false,
+  filtroValoresDropdownAberto: false,
+  naTelaFiltro: false,
   buscaAberta: false,
   filtros: {},
   filtrosData: {},
@@ -392,7 +403,6 @@ const estado = {
   cardUI: {}, // linha -> { expandido, carregando, detalhe, editando, salvando, erroSalvar, agendamentoAberto, mostrarFormAgendamento, salvandoAgendamento, erroAgendamento, duplicatas }
   salvandoNovo: false,
   erroNovo: "",
-  mostrarFiltros: false,
   naTelaRelatorio: false,
   relatorioCampo: "STATUS_COMERCIAL",
   naTelaManutencao: false,
@@ -460,10 +470,6 @@ function restaurarFiltrosSalvos(){
 
     if(salvos.busca){
       estado.busca = salvos.busca;
-    }
-
-    if(algumFiltroAtivo()){
-      estado.mostrarFiltros = true;
     }
   }catch(e){
     // se der qualquer problema lendo o que estava salvo, ignora e
@@ -914,7 +920,7 @@ function renderTudo(){
           <div style="position:relative;">
             <button class="btn-add" id="btnMenuTopo" aria-label="Menu">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
-              ${(estado.mostrarFiltros || estado.busca.trim() !== "") ? `<span class="menu-topo-dot"></span>` : ""}
+              ${(algumFiltroAtivo() || estado.busca.trim() !== "") ? `<span class="menu-topo-dot"></span>` : ""}
             </button>
             <div class="menu-topo-dropdown" id="menuTopoDropdown" style="display:${estado.mostrarMenuTopo ? "block" : "none"};">
               <button class="menu-topo-item" id="menuItemManutencao">
@@ -933,7 +939,7 @@ function renderTudo(){
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="20" x2="6" y2="12"/><line x1="12" y1="20" x2="12" y2="6"/><line x1="18" y1="20" x2="18" y2="15"/></svg>
                 Relatório
               </button>
-              <button class="menu-topo-item ${estado.mostrarFiltros ? "ativo" : ""}" id="menuItemFiltro">
+              <button class="menu-topo-item ${algumFiltroAtivo() ? "ativo" : ""}" id="menuItemFiltro">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="4,4 20,4 14,12.5 14,19 10,21 10,12.5"/></svg>
                 Filtro
               </button>
@@ -943,19 +949,6 @@ function renderTudo(){
               </button>
             </div>
           </div>
-        </div>
-      </div>
-
-      <div class="filtros-box" id="filtrosBox" style="display:${estado.mostrarFiltros ? "block" : "none"};">
-        <div class="filtros-box-topo">
-          <div class="aviso-busca-ativa" id="avisoBuscaAtiva" style="display:none;"></div>
-          <button class="btn-icon-claro" id="btnLimparFiltro" aria-label="Limpar filtro">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
-          </button>
-        </div>
-        <div class="filtros-duas-colunas">
-          <div class="filtros-categorias" id="filtrosCategorias"></div>
-          <div class="filtros-valores" id="filtrosValores"></div>
         </div>
       </div>
 
@@ -978,134 +971,227 @@ function renderTudo(){
     document.addEventListener("click", fecharMenuTopoAoClicarFora, { once: true });
   }
 
-  document.getElementById("menuItemManutencao").addEventListener("click", () => {
+  function fecharDropdownTopoRapido(){
     estado.mostrarMenuTopo = false;
+    const dropdown = document.getElementById("menuTopoDropdown");
+    if(dropdown) dropdown.style.display = "none";
+  }
+
+  document.getElementById("menuItemManutencao").addEventListener("click", () => {
+    fecharDropdownTopoRapido();
     abrirTelaManutencao();
   });
   document.getElementById("menuItemAdicionar").addEventListener("click", () => {
-    estado.mostrarMenuTopo = false;
+    fecharDropdownTopoRapido();
     abrirNovoContato();
   });
   document.getElementById("menuItemImportar").addEventListener("click", () => {
-    estado.mostrarMenuTopo = false;
+    fecharDropdownTopoRapido();
     abrirImportarLote();
   });
   document.getElementById("menuItemRelatorio").addEventListener("click", () => {
-    estado.mostrarMenuTopo = false;
+    fecharDropdownTopoRapido();
     abrirTelaRelatorio();
   });
   document.getElementById("menuItemFiltro").addEventListener("click", () => {
-    estado.mostrarMenuTopo = false;
-    estado.mostrarFiltros = !estado.mostrarFiltros;
-    renderTudo();
+    fecharDropdownTopoRapido();
+    abrirTelaFiltro();
   });
   document.getElementById("menuItemBuscar").addEventListener("click", () => {
-    estado.mostrarMenuTopo = false;
-    renderTudo();
+    fecharDropdownTopoRapido();
     abrirBusca();
   });
 
-  document.getElementById("btnLimparFiltro").addEventListener("click", limparTodosFiltros);
-
   document.getElementById("backdrop").addEventListener("click", fecharSheet);
 
-  renderFiltrosChips();
   renderListaEContagem();
 }
 
-/* Painel de filtro em duas colunas: à esquerda a lista de categorias
-   (Referido, Fuso, País, Região, Status Comercial, Status do Contato,
-   Profissão + as 4 datas), à direita as opções da categoria clicada,
-   com caixinhas que já salvam sozinhas ao marcar/desmarcar — sem
-   precisar de "Aplicar" nem "Limpar" por categoria. */
-function renderFiltrosChips(){
-  if(!estado.mostrarFiltros) return;
-
-  const buscaAtiva = estado.busca.trim() !== "";
-
-  const avisoBusca = document.getElementById("avisoBuscaAtiva");
-  if(avisoBusca){
-    avisoBusca.style.display = buscaAtiva ? "block" : "none";
-    avisoBusca.textContent = buscaAtiva ? `Busca ativa: mostrando resultados de "${estado.busca.trim()}" em todos os contatos. Os filtros abaixo estão pausados.` : "";
-  }
-
-  const btnLimpar = document.getElementById("btnLimparFiltro");
-  if(btnLimpar){
-    const temFiltroPraLimpar = algumFiltroAtivo();
-    btnLimpar.disabled = !temFiltroPraLimpar;
-    btnLimpar.classList.toggle("ativo", temFiltroPraLimpar);
-  }
-
-  const itensCategoria = [
+/* ============================================================
+ * TELA DE FILTRO — abre como as demais telas do menu (sheet),
+ * com dois seletores lado a lado: Categoria e Valores. Marcar ou
+ * desmarcar uma opção já aplica o filtro na hora, sem precisar de
+ * "Aplicar" nem "Limpar" por categoria.
+ * ============================================================ */
+function itensCategoriaFiltro(){
+  return [
     ...CAMPOS_FILTRO.map(f => ({ ...f, tipo: "checklist" })),
     ...CAMPOS_FILTRO_DATA.map(f => ({ ...f, tipo: "data" }))
   ];
+}
 
-  const colCategorias = document.getElementById("filtrosCategorias");
-  colCategorias.innerHTML = itensCategoria.map(f => {
-    const ativa = estado.filtroCategoriaAtiva === f.chave;
-    let badge = "";
-    if(f.tipo === "checklist"){
-      const n = estado.filtros[f.chave].size;
-      if(n > 0) badge = ` <span class="n">${n}</span>`;
-    } else if(estado.filtrosData[f.chave]){
-      badge = ` <span class="n">●</span>`;
-    }
-    return `<button class="categoria-filtro-item ${ativa ? "ativa" : ""}" data-chave="${f.chave}">${f.rotulo}${badge}</button>`;
-  }).join("");
+function abrirTelaFiltro(){
+  if(!estado.filtroCategoriaAtiva) estado.filtroCategoriaAtiva = itensCategoriaFiltro()[0].chave;
+  estado.filtroCategoriaDropdownAberto = false;
+  estado.filtroValoresDropdownAberto = false;
+  estado.naTelaFiltro = true;
+  renderTelaFiltro();
+  abrirSheetElemento();
+}
 
-  colCategorias.querySelectorAll(".categoria-filtro-item").forEach(btn => {
-    btn.addEventListener("click", () => {
-      estado.filtroCategoriaAtiva = btn.dataset.chave;
-      renderFiltrosChips();
-    });
-  });
+function fecharTelaFiltro(){
+  estado.naTelaFiltro = false;
+  estado.filtroCategoriaDropdownAberto = false;
+  estado.filtroValoresDropdownAberto = false;
+  fecharSheet();
+}
 
-  const colValores = document.getElementById("filtrosValores");
-  const itemAtivo = itensCategoria.find(f => f.chave === estado.filtroCategoriaAtiva);
-
-  if(!itemAtivo){
-    colValores.innerHTML = `<p class="filtros-valores-vazio">Toque numa categoria ao lado pra ver as opções.</p>`;
-    return;
-  }
-
+function renderConteudoDropdownValores(itemAtivo){
   if(itemAtivo.tipo === "checklist"){
     const contagens = opcoesDisponiveis(itemAtivo.chave);
     const valores = ordenarValoresFiltro(itemAtivo.chave, Object.keys(contagens));
     const selecionados = estado.filtros[itemAtivo.chave];
 
-    colValores.innerHTML = valores.length === 0
-      ? `<p class="filtros-valores-vazio">Nenhuma opção disponível com os filtros atuais.</p>`
-      : valores.map((v, i) => `
+    if(valores.length === 0){
+      return `<div class="select-filtro-dropdown" id="dropdownValores"><p class="filtros-valores-vazio">Nenhuma opção disponível.</p></div>`;
+    }
+    return `<div class="select-filtro-dropdown" id="dropdownValores">
+      ${valores.map((v, i) => `
         <div class="check-row">
-          <input type="checkbox" id="chkFiltro_${i}" ${selecionados.has(v) ? "checked" : ""} data-valor="${encodeURIComponent(v)}">
-          <label for="chkFiltro_${i}">${v}</label>
+          <input type="checkbox" id="chkFiltroTela_${i}" ${selecionados.has(v) ? "checked" : ""} data-valor="${encodeURIComponent(v)}">
+          <label for="chkFiltroTela_${i}">${v}</label>
           <span class="count">${contagens[v]}</span>
         </div>
-      `).join("");
+      `).join("")}
+    </div>`;
+  }
 
-    colValores.querySelectorAll('input[type=checkbox]').forEach(chk => {
-      chk.addEventListener("change", () => {
-        const valor = decodeURIComponent(chk.dataset.valor);
-        if(chk.checked) selecionados.add(valor); else selecionados.delete(valor);
-        renderFiltrosChips();
-        renderListaEContagem();
+  const valorIso = brParaIso(estado.filtrosData[itemAtivo.chave]);
+  return `<div class="select-filtro-dropdown" id="dropdownValores" style="padding:10px;">
+    <input type="date" id="inputFiltroDataTela" value="${valorIso}" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:8px;padding:9px 10px;font-size:13px;font-family:inherit;">
+  </div>`;
+}
+
+function renderTelaFiltro(){
+  const sheet = document.getElementById("sheet");
+  const itensCategoria = itensCategoriaFiltro();
+  const itemAtivo = itensCategoria.find(f => f.chave === estado.filtroCategoriaAtiva) || itensCategoria[0];
+  const buscaAtiva = estado.busca.trim() !== "";
+
+  let rotuloValores = "Selecionar";
+  if(itemAtivo.tipo === "checklist"){
+    const n = estado.filtros[itemAtivo.chave].size;
+    rotuloValores = n === 0 ? "Nenhum selecionado" : `${n} selecionado${n === 1 ? "" : "s"}`;
+  } else {
+    rotuloValores = estado.filtrosData[itemAtivo.chave] || "Nenhuma data";
+  }
+
+  sheet.innerHTML = `
+    <div class="sheet-handle"></div>
+    <div class="sheet-header"><h3>Filtro</h3><button class="close" id="fecharSheet">✕</button></div>
+    <div class="sheet-body">
+      ${buscaAtiva ? `<div class="aviso-busca-ativa">Busca ativa: mostrando resultados de "${estado.busca.trim()}" em todos os contatos. Os filtros abaixo estão pausados.</div>` : ""}
+
+      <div class="select-filtro-linha">
+        <div class="select-filtro">
+          <button type="button" class="select-filtro-botao ${estado.filtroCategoriaDropdownAberto ? "aberto" : ""}" id="btnSelectCategoria">
+            <span>${itemAtivo.rotulo}</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          ${estado.filtroCategoriaDropdownAberto ? `
+            <div class="select-filtro-dropdown" id="dropdownCategorias">
+              ${itensCategoria.map(f => {
+                let badge = "";
+                if(f.tipo === "checklist"){
+                  const n = estado.filtros[f.chave].size;
+                  if(n > 0) badge = ` <span class="n">${n}</span>`;
+                } else if(estado.filtrosData[f.chave]){
+                  badge = ` <span class="n">●</span>`;
+                }
+                return `<button type="button" class="item-categoria ${f.chave === itemAtivo.chave ? "ativa" : ""}" data-chave="${f.chave}">${f.rotulo}${badge}</button>`;
+              }).join("")}
+            </div>
+          ` : ""}
+        </div>
+
+        <div class="select-filtro">
+          <button type="button" class="select-filtro-botao ${estado.filtroValoresDropdownAberto ? "aberto" : ""}" id="btnSelectValores">
+            <span>${rotuloValores}</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          ${estado.filtroValoresDropdownAberto ? renderConteudoDropdownValores(itemAtivo) : ""}
+        </div>
+
+        <button type="button" class="btn-icon-claro ${algumFiltroAtivo() ? "ativo" : ""}" id="btnLimparFiltro" aria-label="Limpar filtro" ${algumFiltroAtivo() ? "" : "disabled"}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21l4-1 11-11-3-3L4 17l-1 4z"/><path d="M14 6l3 3"/><path d="M2 21h5"/></svg>
+        </button>
+      </div>
+
+      <p style="color:var(--ink-faint);font-size:11.5px;margin:2px 0 0;">Marcar ou desmarcar uma opção já aplica o filtro na hora.</p>
+    </div>
+  `;
+
+  document.getElementById("fecharSheet").addEventListener("click", fecharTelaFiltro);
+
+  document.getElementById("btnSelectCategoria").addEventListener("click", (e) => {
+    e.stopPropagation();
+    estado.filtroCategoriaDropdownAberto = !estado.filtroCategoriaDropdownAberto;
+    estado.filtroValoresDropdownAberto = false;
+    renderTelaFiltro();
+  });
+
+  document.getElementById("btnSelectValores").addEventListener("click", (e) => {
+    e.stopPropagation();
+    estado.filtroValoresDropdownAberto = !estado.filtroValoresDropdownAberto;
+    estado.filtroCategoriaDropdownAberto = false;
+    renderTelaFiltro();
+  });
+
+  const dropdownCategorias = document.getElementById("dropdownCategorias");
+  if(dropdownCategorias){
+    dropdownCategorias.querySelectorAll(".item-categoria").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        estado.filtroCategoriaAtiva = btn.dataset.chave;
+        estado.filtroCategoriaDropdownAberto = false;
+        estado.filtroValoresDropdownAberto = false;
+        renderTelaFiltro();
       });
     });
-  } else {
-    const valorIso = brParaIso(estado.filtrosData[itemAtivo.chave]);
-    colValores.innerHTML = `
-      <div class="data-item">
-        <label>Escolha a data</label>
-        <input type="date" id="inputFiltroDataInline" value="${valorIso}">
-      </div>
-    `;
-    document.getElementById("inputFiltroDataInline").addEventListener("change", (e) => {
-      estado.filtrosData[itemAtivo.chave] = isoParaBr(e.target.value);
-      renderFiltrosChips();
-      renderListaEContagem();
-    });
   }
+
+  if(estado.filtroValoresDropdownAberto){
+    if(itemAtivo.tipo === "checklist"){
+      document.querySelectorAll("#dropdownValores input[type=checkbox]").forEach(chk => {
+        chk.addEventListener("click", e => e.stopPropagation());
+        chk.addEventListener("change", () => {
+          const valor = decodeURIComponent(chk.dataset.valor);
+          if(chk.checked) estado.filtros[itemAtivo.chave].add(valor); else estado.filtros[itemAtivo.chave].delete(valor);
+          renderTelaFiltro();
+          renderListaEContagem();
+        });
+      });
+    } else {
+      const inputData = document.getElementById("inputFiltroDataTela");
+      if(inputData){
+        inputData.addEventListener("click", e => e.stopPropagation());
+        inputData.addEventListener("change", (e) => {
+          estado.filtrosData[itemAtivo.chave] = isoParaBr(e.target.value);
+          renderTelaFiltro();
+          renderListaEContagem();
+        });
+      }
+    }
+  }
+
+  document.getElementById("btnLimparFiltro").addEventListener("click", () => {
+    limparTodosFiltros();
+    renderTelaFiltro();
+  });
+
+  if(estado.filtroCategoriaDropdownAberto || estado.filtroValoresDropdownAberto){
+    document.addEventListener("click", fecharDropdownsFiltroAoClicarFora, { once: true });
+  }
+}
+
+function fecharDropdownsFiltroAoClicarFora(e){
+  if(!estado.naTelaFiltro) return;
+  const elementos = ["btnSelectCategoria", "dropdownCategorias", "btnSelectValores", "dropdownValores"]
+    .map(id => document.getElementById(id));
+  if(elementos.some(el => el && el.contains(e.target))) return;
+  estado.filtroCategoriaDropdownAberto = false;
+  estado.filtroValoresDropdownAberto = false;
+  renderTelaFiltro();
 }
 
 /* Limpa todos os filtros ativos (checklist + data) de uma vez, sem
@@ -1113,7 +1199,6 @@ function renderFiltrosChips(){
 function limparTodosFiltros(){
   CAMPOS_FILTRO.forEach(campo => estado.filtros[campo.chave].clear());
   CAMPOS_FILTRO_DATA.forEach(campo => { estado.filtrosData[campo.chave] = ""; });
-  renderFiltrosChips();
   renderListaEContagem();
 }
 
@@ -1147,7 +1232,7 @@ function renderListaEContagem(){
   if(!lista) return;
 
   if(carregando && totalCarregado === 0){
-    lista.innerHTML = `<div class="loading">Carregando matrículas</div>`;
+    lista.innerHTML = `<div class="loading">Carregando matrículas...</div>`;
     return;
   }
 
@@ -1770,6 +1855,8 @@ function ordenarValoresFiltro(chave, valores){
 }
 
 /* Sheet de busca livre — nome, telefone, indicação, etc. */
+let timeoutBuscaLivre = null;
+
 function abrirBusca(){
   const sheet = document.getElementById("sheet");
   sheet.innerHTML = `
@@ -1779,28 +1866,20 @@ function abrirBusca(){
       <div class="busca-livre-row">
         <input type="text" id="inputBuscaLivre" placeholder="Nome, telefone, indicação..." value="${estado.busca}">
       </div>
-    </div>
-    <div class="sheet-footer">
-      <button class="btn ghost" id="limparBusca">Limpar</button>
-      <button class="btn primary" id="aplicarBusca">Aplicar</button>
+      <p style="color:var(--ink-faint);font-size:11.5px;margin:8px 0 0;">Os resultados aparecem conforme você digita.</p>
     </div>
   `;
 
   document.getElementById("fecharSheet").addEventListener("click", fecharSheet);
-  document.getElementById("limparBusca").addEventListener("click", () => {
-    document.getElementById("inputBuscaLivre").value = "";
-  });
-  document.getElementById("aplicarBusca").addEventListener("click", () => {
-    estado.busca = document.getElementById("inputBuscaLivre").value;
-    fecharSheet();
-    renderFiltrosChips();
-    renderListaEContagem();
-  });
 
   const input = document.getElementById("inputBuscaLivre");
   input.focus();
-  input.addEventListener("keydown", (e) => {
-    if(e.key === "Enter") document.getElementById("aplicarBusca").click();
+  input.addEventListener("input", (e) => {
+    estado.busca = e.target.value;
+    clearTimeout(timeoutBuscaLivre);
+    timeoutBuscaLivre = setTimeout(() => {
+      renderListaEContagem();
+    }, 150);
   });
 
   abrirSheetElemento();
@@ -1814,6 +1893,7 @@ function fecharSheet(){
   document.getElementById("backdrop").classList.remove("open");
   document.getElementById("sheet").classList.remove("open");
   estado.naTelaRelatorio = false;
+  estado.naTelaFiltro = false;
 }
 
 /* ============================================================
