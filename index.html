@@ -58,11 +58,12 @@
   .card-linha-resumo{ display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--ink-faint); margin-top:2px; }
   .card-linha-resumo-k{ font-weight:600; flex-shrink:0; }
   .card-linha-resumo-v{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .status-comercial-inline{
+  .status-comercial-inline, .status-comportamental-inline{
     border:1px solid #DAD5C8; border-radius:8px; padding:3px 6px; font-size:12.5px;
     background:#fff; color:var(--ink); max-width:160px;
   }
-  .status-comercial-inline.salvando{ opacity:.5; }
+  .status-comercial-inline.salvando, .status-comportamental-inline.salvando{ opacity:.5; }
+  .dia-semana-agenda{ font-size:12px; color:var(--ink-faint); margin-top:4px; font-weight:600; }
   .mensagem-whatsapp-box{ background:#F7F5EF; border:1px solid #E5E0D2; border-radius:12px; padding:12px; }
   .mensagem-whatsapp-titulo{ font-weight:600; font-size:13.5px; margin-bottom:4px; }
   .campo-com-microfone{ display:flex; align-items:flex-start; gap:6px; }
@@ -414,7 +415,7 @@ const estado = {
   relatorioDataFim: ""
 };
 CAMPOS_FILTRO.forEach(f => estado.filtros[f.chave] = new Set());
-CAMPOS_FILTRO_DATA.forEach(f => estado.filtrosData[f.chave] = "");
+CAMPOS_FILTRO_DATA.forEach(f => estado.filtrosData[f.chave] = { de: "", ate: "" });
 
 const CHAVE_FILTROS_SALVOS = "ultimosFiltrosAtivos";
 
@@ -455,9 +456,11 @@ function restaurarFiltrosSalvos(){
 
     if(salvos.filtrosData){
       CAMPOS_FILTRO_DATA.forEach(f => {
-        if(salvos.filtrosData[f.chave]){
-          estado.filtrosData[f.chave] = salvos.filtrosData[f.chave];
+        const salvo = salvos.filtrosData[f.chave];
+        if(salvo && typeof salvo === "object"){
+          estado.filtrosData[f.chave] = { de: salvo.de || "", ate: salvo.ate || "" };
         }
+        // formato antigo (texto simples) é ignorado — o filtro começa limpo
       });
     }
 
@@ -723,10 +726,26 @@ function passaNosFiltros(c, chaveExcluida){
   }
   for(const campo of CAMPOS_FILTRO_DATA){
     if(campo.chave === chaveExcluida) continue;
-    const dataSelecionada = estado.filtrosData[campo.chave];
-    if(!dataSelecionada) continue;
-    const dataDoValor = String(c[campo.chave] || "").substring(0, 10); // "dd/MM/yyyy" mesmo se tiver hora depois
-    if(dataDoValor !== dataSelecionada) return false;
+    const filtro = estado.filtrosData[campo.chave];
+    if(!filtro || (!filtro.de && !filtro.ate)) continue;
+
+    const dataDoValor = String(c[campo.chave] || "").substring(0, 10); // "dd/MM/yyyy"
+    if(dataDoValor === "") return false;
+
+    if(filtro.de && filtro.ate){
+      // Período: de "Tal" até "Tal", incluindo as duas pontas
+      const valorIso = brParaIso(dataDoValor);
+      const deIso = brParaIso(filtro.de);
+      const ateIso = brParaIso(filtro.ate);
+      if(valorIso < deIso || valorIso > ateIso) return false;
+    } else if(filtro.de){
+      // Só uma data preenchida = busca exatamente aquele dia
+      if(dataDoValor !== filtro.de) return false;
+    } else if(filtro.ate){
+      const valorIso = brParaIso(dataDoValor);
+      const ateIso = brParaIso(filtro.ate);
+      if(valorIso > ateIso) return false;
+    }
   }
   return true;
 }
@@ -740,18 +759,31 @@ function algumFiltroAtivo(){
     if(estado.filtros[campo.chave].size > 0) return true;
   }
   for(const campo of CAMPOS_FILTRO_DATA){
-    if(estado.filtrosData[campo.chave]) return true;
+    const f = estado.filtrosData[campo.chave];
+    if(f && (f.de || f.ate)) return true;
   }
   return false;
 }
 
 function contatosFiltradosFinal(){
-  const termoBusca = estado.busca.trim().toLowerCase();
+  const termoOriginal = estado.busca.trim();
+  const termoBusca = termoOriginal.toLowerCase();
+  const termoSoDigitos = termoOriginal.replace(/\D/g, "");
 
   if(termoBusca !== ""){
     return contatosCombinados().filter(c => {
       const alvo = CAMPOS_BUSCA_TEXTO.map(chave => c[chave] || "").join(" ").toLowerCase();
-      return alvo.includes(termoBusca);
+      if(alvo.includes(termoBusca)) return true;
+
+      // Se o termo tem dígitos (telefone, por exemplo), compara também
+      // ignorando espaços, +, (), - e qualquer outra formatação — assim
+      // a busca encontra o contato independente de como o número foi
+      // digitado ou de como ele está salvo.
+      if(termoSoDigitos.length >= 4){
+        const alvoSoDigitos = alvo.replace(/\D/g, "");
+        if(alvoSoDigitos.includes(termoSoDigitos)) return true;
+      }
+      return false;
     });
   }
 
@@ -926,7 +958,7 @@ function renderTudo(){
               </button>
               <button class="menu-topo-item" id="menuItemImportar">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                Importar em lote
+                Importar contato em lote
               </button>
               <button class="menu-topo-item" id="menuItemRelatorio">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="20" x2="6" y2="12"/><line x1="12" y1="20" x2="12" y2="6"/><line x1="18" y1="20" x2="18" y2="15"/></svg>
@@ -1037,9 +1069,18 @@ function renderConteudoExpandidoFiltro(item){
     </div>`;
   }
 
-  const valorIso = brParaIso(estado.filtrosData[item.chave]);
-  return `<div class="dropdown-filtro-inline" id="painelFiltroExpandido" style="padding:10px;">
-    <input type="date" id="inputFiltroDataTela" value="${valorIso}" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:8px;padding:9px 10px;font-size:13px;font-family:inherit;">
+  const filtro = estado.filtrosData[item.chave] || { de: "", ate: "" };
+  const deIso = brParaIso(filtro.de);
+  const ateIso = brParaIso(filtro.ate);
+  return `<div class="dropdown-filtro-inline" id="painelFiltroExpandido" style="padding:12px;">
+    <div class="detail-field" style="margin-bottom:10px;">
+      <div class="k">Data única (ou início do período)</div>
+      <input type="date" id="inputFiltroDataDe" value="${deIso}" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:8px;padding:9px 10px;font-size:13px;font-family:inherit;">
+    </div>
+    <div class="detail-field">
+      <div class="k">Até (opcional — preencha só se quiser um período)</div>
+      <input type="date" id="inputFiltroDataAte" value="${ateIso}" style="width:100%;box-sizing:border-box;border:1px solid var(--border);border-radius:8px;padding:9px 10px;font-size:13px;font-family:inherit;">
+    </div>
   </div>`;
 }
 
@@ -1058,7 +1099,7 @@ function renderTelaFiltro(){
     if(f.tipo === "checklist"){
       const n = estado.filtros[chave].size;
       if(n > 0) badge = ` <span class="n">${n}</span>`;
-    } else if(estado.filtrosData[chave]){
+    } else if(estado.filtrosData[chave] && (estado.filtrosData[chave].de || estado.filtrosData[chave].ate)){
       badge = ` <span class="n">●</span>`;
     }
     return `<button type="button" class="chip grid ${ativa ? "active" : ""}" data-campo="${chave}">${f.rotulo}${badge}</button>`;
@@ -1108,10 +1149,20 @@ function renderTelaFiltro(){
         });
       });
     } else {
-      const inputData = document.getElementById("inputFiltroDataTela");
-      if(inputData){
-        inputData.addEventListener("change", (e) => {
-          estado.filtrosData[itemAtivo.chave] = isoParaBr(e.target.value);
+      const inputDe = document.getElementById("inputFiltroDataDe");
+      const inputAte = document.getElementById("inputFiltroDataAte");
+      if(inputDe){
+        inputDe.addEventListener("change", (e) => {
+          const atual = estado.filtrosData[itemAtivo.chave] || { de: "", ate: "" };
+          estado.filtrosData[itemAtivo.chave] = { de: isoParaBr(e.target.value), ate: atual.ate };
+          renderTelaFiltro();
+          renderListaEContagem();
+        });
+      }
+      if(inputAte){
+        inputAte.addEventListener("change", (e) => {
+          const atual = estado.filtrosData[itemAtivo.chave] || { de: "", ate: "" };
+          estado.filtrosData[itemAtivo.chave] = { de: atual.de, ate: isoParaBr(e.target.value) };
           renderTelaFiltro();
           renderListaEContagem();
         });
@@ -1129,7 +1180,7 @@ function renderTelaFiltro(){
    mexer na Busca — e atualiza a lista na hora, sem filtro nenhum. */
 function limparTodosFiltros(){
   CAMPOS_FILTRO.forEach(campo => estado.filtros[campo.chave].clear());
-  CAMPOS_FILTRO_DATA.forEach(campo => { estado.filtrosData[campo.chave] = ""; });
+  CAMPOS_FILTRO_DATA.forEach(campo => { estado.filtrosData[campo.chave] = { de: "", ate: "" }; });
   renderListaEContagem();
 }
 
@@ -1190,10 +1241,37 @@ function renderListaEContagem(){
   configurarScrollInfinito(lista);
 }
 
+/* Atraso antes de remover um card da lista quando ele deixa de bater
+   com o filtro ativo (só depois de mudar Status Comercial e/ou Status
+   do Contato). Fica em 30s e reinicia a contagem se o outro status
+   também for alterado logo em seguida — assim mudar só um dos dois
+   não faz o contato sumir antes de você ajustar o segundo. */
+const timeoutsRemocaoCard = {};
+function agendarRemocaoCardComFiltro(linha){
+  if(timeoutsRemocaoCard[linha]) clearTimeout(timeoutsRemocaoCard[linha]);
+  timeoutsRemocaoCard[linha] = setTimeout(() => {
+    delete timeoutsRemocaoCard[linha];
+    sincronizarCardComFiltroAtivo(linha);
+  }, 30000);
+}
+
 async function handleMudancaNaLista(e){
-  const select = e.target.closest(".status-comercial-inline");
+  const selectComercial = e.target.closest(".status-comercial-inline");
+  const selectComportamental = e.target.closest(".status-comportamental-inline");
+  const inputAgenda = e.target.closest("[data-agenda-input]");
+
+  if(inputAgenda){
+    const wrap = inputAgenda.closest(".detail-field");
+    const rotuloDia = wrap && wrap.querySelector(".dia-semana-agenda");
+    if(rotuloDia) rotuloDia.textContent = calcularDiaSemanaTexto(inputAgenda.value);
+    return;
+  }
+
+  const select = selectComercial || selectComportamental;
   if(!select) return;
 
+  const campoDb = selectComercial ? "STATUS_COMERCIAL" : "STATUS_COMPORTAMENTAL";
+  const campoData = selectComercial ? "REGISTRO_STATUS_COMERCIAL" : "REGISTRO_STATUS_COMPORTAMENTAL";
   const linha = Number(select.dataset.linha);
   const aba = select.dataset.aba;
   const novoValor = select.value;
@@ -1202,25 +1280,45 @@ async function handleMudancaNaLista(e){
   select.disabled = true;
 
   try{
-    await apiAtualizar(aba, linha, { STATUS_COMERCIAL: novoValor });
+    await apiAtualizar(aba, linha, { [campoDb]: novoValor });
 
     const c = estado.contatos.find(x => x.linha === linha);
     if(c){
-      c.STATUS_COMERCIAL = novoValor;
-      c.REGISTRO_STATUS_COMERCIAL = hojeFormatadoBr();
+      c[campoDb] = novoValor;
+      c[campoData] = hojeFormatadoBr();
     }
 
-    mostrarToast("Status Comercial salvo");
+    mostrarToast((selectComercial ? "Status Comercial" : "Status do Contato") + " salvo");
+
+    // Se mudou pra AGENDADO no Status Comercial, já abre a tela de
+    // agendamento pra escolher data e hora, sem precisar de outro toque.
+    if(selectComercial && novoValor === "AGENDADO"){
+      const ui = obterCardUI(linha);
+      ui.expandido = true;
+      ui.agendamentoAberto = true;
+      ui.mostrarFormAgendamento = true;
+      ui.erroAgendamento = "";
+      atualizarCardCompleto(linha);
+    }
 
     // Se algum filtro estiver ativo, o contato pode ter deixado de
-    // pertencer a ele — remove o card da lista se for o caso.
-    sincronizarCardComFiltroAtivo(linha);
+    // pertencer a ele — agenda a remoção do card em 30s (dá tempo de
+    // ajustar o outro status antes de sumir da lista).
+    agendarRemocaoCardComFiltro(linha);
   }catch(err){
     mostrarToast("Erro ao salvar: " + err.message);
   }finally{
     select.classList.remove("salvando");
     select.disabled = false;
   }
+}
+
+function calcularDiaSemanaTexto(valorDatetimeLocal){
+  if(!valorDatetimeLocal) return "";
+  const d = new Date(valorDatetimeLocal);
+  if(isNaN(d.getTime())) return "";
+  const dias = ["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"];
+  return dias[d.getDay()];
 }
 
 function hojeFormatadoBr(){
@@ -1276,7 +1374,8 @@ function badgesFiltroAtivo(c){
   });
 
   CAMPOS_FILTRO_DATA.forEach(campo => {
-    if(!estado.filtrosData[campo.chave]) return;
+    const f = estado.filtrosData[campo.chave];
+    if(!f || (!f.de && !f.ate)) return;
     const valor = String(c[campo.chave] || "").substring(0, 10);
     pills.push(`<span class="filtro-badge">${valor || "—"}</span>`);
   });
@@ -1344,6 +1443,12 @@ function cardInnerHtml(c){
       <span class="card-linha-resumo-k">Status Comercial:</span>
       <select class="status-comercial-inline" data-linha="${c.linha}" data-aba="${c.aba}">
         ${(estado.opcoes.statusComercial || [""]).map(o => `<option value="${escapeAttr(o)}" ${o === (c.STATUS_COMERCIAL || "") ? "selected" : ""}>${o === "" ? "(em branco)" : o}</option>`).join("")}
+      </select>
+    </div>
+    <div class="card-linha-resumo card-status-inline-wrap">
+      <span class="card-linha-resumo-k">Status do Contato:</span>
+      <select class="status-comportamental-inline" data-linha="${c.linha}" data-aba="${c.aba}">
+        ${(estado.opcoes.statusComportamental || [""]).map(o => `<option value="${escapeAttr(o)}" ${o === (c.STATUS_COMPORTAMENTAL || "") ? "selected" : ""}>${o === "" ? "(em branco)" : o}</option>`).join("")}
       </select>
     </div>
     ${badgesFiltroAtivo(c)}
@@ -1470,6 +1575,7 @@ function cardAgendamentoWidget(c, ui){
       <div class="detail-field">
         <div class="k">Nova data e hora</div>
         <input type="datetime-local" data-agenda-input value="${valorPadrao}">
+        <div class="dia-semana-agenda">${valorPadrao ? "📅 " + calcularDiaSemanaTexto(valorPadrao) : ""}</div>
       </div>
       <div class="detail-actions">
         <button class="btn ghost" data-acao="cancelar-form-agendamento" ${ui.salvandoAgendamento ? "disabled" : ""}>${temAgendamento ? "Voltar" : "Cancelar"}</button>
@@ -2221,8 +2327,19 @@ function renderTelaImportarLote(){
 
   sheet.innerHTML = `
     <div class="sheet-handle"></div>
-    <div class="sheet-header"><h3>Importar contatos em lote</h3><button class="close" id="fecharSheet">✕</button></div>
+    <div class="sheet-header"><h3>Importar contato em lote</h3><button class="close" id="fecharSheet">✕</button></div>
     <div class="sheet-body">
+
+      <button class="btn ghost" id="baixarPlanilhaContatos" style="width:100%;">Exportar planilha de contatos</button>
+      <p style="color:var(--ink-faint);font-size:11px;margin:6px 0 14px;">
+        Baixa uma planilha (.csv, abre no Excel/Google Sheets) com todas as informações de todos os contatos carregados no momento.
+      </p>
+
+      <div style="display:flex;align-items:center;gap:8px;margin:0 0 14px;">
+        <div style="flex:1;height:1px;background:#E5E0D2;"></div>
+        <span style="font-size:11px;color:var(--ink-faint);">importar</span>
+        <div style="flex:1;height:1px;background:#E5E0D2;"></div>
+      </div>
 
       <button class="btn ghost" id="btnImportarGoogle" style="width:100%;display:flex;align-items:center;justify-content:center;gap:8px;" ${estado.importarLoteCarregandoGoogle ? "disabled" : ""}>
         <svg width="16" height="16" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
@@ -2302,6 +2419,7 @@ function renderTelaImportarLote(){
   `;
 
   document.getElementById("fecharSheet").addEventListener("click", fecharImportarLote);
+  document.getElementById("baixarPlanilhaContatos").addEventListener("click", baixarPlanilhaDeContatos);
   document.getElementById("btnProcessarColado").addEventListener("click", processarTextoColadoLote);
   document.getElementById("btnImportarGoogle").addEventListener("click", iniciarImportarGoogleContatos);
 
@@ -2362,16 +2480,6 @@ function renderTelaManutencao(){
       <div style="height:16px;"></div>
 
       <div class="mensagem-whatsapp-box">
-        <div class="mensagem-whatsapp-titulo">Exportar contatos</div>
-        <p style="color:var(--ink-faint);font-size:12px;margin:0 0 8px;">
-          Baixa uma planilha (.csv, abre no Excel/Google Sheets) com todas as informações de todos os contatos carregados no momento.
-        </p>
-        <button class="btn ghost" id="baixarPlanilhaContatos">Baixar planilha de contatos</button>
-      </div>
-
-      <div style="height:16px;"></div>
-
-      <div class="mensagem-whatsapp-box">
         <div class="mensagem-whatsapp-titulo">Gerenciar listas de opções</div>
         <p style="color:var(--ink-faint);font-size:12px;margin:0 0 10px;">
           Adicione ou remova as opções de cada lista suspensa. Ao remover uma opção que já está em uso, você escolhe pra qual outra opção transferir os contatos (ou deixar em branco).
@@ -2388,8 +2496,6 @@ function renderTelaManutencao(){
     salvarMensagemWhatsappTemplate(texto);
     mostrarToast("Mensagem do WhatsApp salva");
   });
-
-  document.getElementById("baixarPlanilhaContatos").addEventListener("click", baixarPlanilhaDeContatos);
 
   ["referidos", "statusComercial", "statusComportamental", "profissao"].forEach(chaveApp => {
     const botaoAdd = document.getElementById("addOpcao-" + chaveApp);
