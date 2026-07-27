@@ -360,6 +360,10 @@ const GOOGLE_CLIENT_ID = "940850704715-lao03stkfdkgjieklk1419rlts3qt53q.apps.goo
    contato do Google depois que ele for importado com sucesso. */
 const GOOGLE_CONTACTS_SCOPE = "https://www.googleapis.com/auth/contacts";
 
+/* Escopo do Google Agenda — só cria/edita/apaga os EVENTOS que o
+   próprio app criar, não dá acesso de leitura à agenda inteira. */
+const GOOGLE_CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events";
+
 /* Caractere que marca um contato como "de trabalho" no Google Contatos.
    Só contatos cujo nome começar com isso são buscados/importados —
    contatos pessoais (sem o caractere) são ignorados. */
@@ -1877,6 +1881,126 @@ function cancelarFormAgendamentoCard(linha){
   }
 }
 
+/* ============================================================
+ * GOOGLE AGENDA — cria/atualiza/apaga o evento de verdade na
+ * agenda do Google sempre que um agendamento é confirmado,
+ * reagendado ou cancelado no app.
+ * ============================================================ */
+let googleTokenClientCalendar = null;
+let tokenGoogleCalendarAtual = null;
+
+function obterTokenGoogleCalendar(){
+  return new Promise((resolve, reject) => {
+    if(GOOGLE_CLIENT_ID.startsWith("COLE_AQUI")){
+      reject(new Error("Configuração do Google ainda não foi concluída."));
+      return;
+    }
+    if(typeof google === "undefined" || !google.accounts || !google.accounts.oauth2){
+      reject(new Error("Não foi possível carregar o login do Google."));
+      return;
+    }
+    if(tokenGoogleCalendarAtual){
+      resolve(tokenGoogleCalendarAtual);
+      return;
+    }
+
+    if(!googleTokenClientCalendar){
+      googleTokenClientCalendar = google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: GOOGLE_CALENDAR_SCOPE,
+        callback: (resposta) => {
+          if(resposta && resposta.access_token){
+            tokenGoogleCalendarAtual = resposta.access_token;
+            resolve(resposta.access_token);
+          } else {
+            reject(new Error("Não foi possível conectar ao Google Agenda."));
+          }
+        }
+      });
+    }
+
+    googleTokenClientCalendar.requestAccessToken();
+  });
+}
+
+function montarTituloEventoAgenda(c){
+  const partes = [c.STATUS_COMERCIAL, c.NOME, c.TELEFONE, c.INDICADO_POR].filter(p => p && String(p).trim() !== "");
+  return partes.join(" - ");
+}
+
+function montarNotasEventoAgenda(c){
+  const digitosTelefone = String(c.TELEFONE || "").replace(/\D/g, "");
+  const linhas = [
+    "Status: " + (c.STATUS_COMERCIAL || ""),
+    "Nome: " + (c.NOME || ""),
+    "Observação do contato: " + (c.OBSERVACAO || ""),
+    "Telefone: " + (c.TELEFONE || ""),
+    "WhatsApp: " + (digitosTelefone ? "https://wa.me/" + digitosTelefone : ""),
+    "Indicado por: " + (c.INDICADO_POR || ""),
+    "Observação do Indicado por: " + (c.OBSERVACAO_INDICADO || "")
+  ];
+  return linhas.join("\n");
+}
+
+/* Cria o evento (se ainda não existe um pra este contato) ou
+   atualiza o mesmo evento (reagendamento). Retorna o ID do evento
+   do Google, pra ser salvo em ID_EVENTO_AGENDA no banco. Erros aqui
+   não devem travar o resto do fluxo — o agendamento já foi salvo no
+   app de qualquer forma. */
+async function criarOuAtualizarEventoAgenda(c, dataHoraIso){
+  const token = await obterTokenGoogleCalendar();
+
+  const inicio = new Date(dataHoraIso);
+  const fim = new Date(inicio.getTime() + 60 * 60 * 1000); // 1h de duração padrão
+
+  const corpo = {
+    summary: montarTituloEventoAgenda(c),
+    description: montarNotasEventoAgenda(c),
+    start: { dateTime: inicio.toISOString(), timeZone: "America/Sao_Paulo" },
+    end: { dateTime: fim.toISOString(), timeZone: "America/Sao_Paulo" }
+  };
+
+  const eventoExistente = c.ID_EVENTO_AGENDA;
+  const url = eventoExistente
+    ? `https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventoExistente}`
+    : "https://www.googleapis.com/calendar/v3/calendars/primary/events";
+
+  const resposta = await fetch(url, {
+    method: eventoExistente ? "PATCH" : "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(corpo)
+  });
+
+  if(!resposta.ok){
+    // Se o evento antigo já não existir mais no Google (apagado manualmente
+    // por lá, por exemplo), cria um novo em vez de falhar.
+    if(eventoExistente && resposta.status === 404){
+      return criarOuAtualizarEventoAgenda({ ...c, ID_EVENTO_AGENDA: null }, dataHoraIso);
+    }
+    throw new Error("Falha na Agenda (" + resposta.status + ")");
+  }
+
+  const dados = await resposta.json();
+  return dados.id;
+}
+
+async function excluirEventoAgenda(eventoId){
+  if(!eventoId) return;
+  try{
+    const token = await obterTokenGoogleCalendar();
+    await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventoId}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` }
+    });
+  }catch(err){
+    // Se não der pra apagar da Agenda (sem internet, token negado etc.),
+    // o agendamento já foi removido do app de qualquer forma.
+  }
+}
+
 async function confirmarAgendamentoCard(aba, linha){
   const ui = obterCardUI(linha);
   if(ui.salvandoAgendamento) return;
@@ -1912,6 +2036,20 @@ async function confirmarAgendamentoCard(aba, linha){
       atualizarCardCompleto(linha);
     }
     mostrarToast("Agendamento confirmado!");
+
+    // Cria/atualiza o evento na Agenda do Google — se falhar, o
+    // agendamento já está salvo no app de qualquer forma, então só
+    // avisa sem desfazer nada.
+    try{
+      const contatoAtual = estado.contatos[idx];
+      const eventoId = await criarOuAtualizarEventoAgenda(contatoAtual, valor);
+      if(eventoId && eventoId !== contatoAtual.ID_EVENTO_AGENDA){
+        contatoAtual.ID_EVENTO_AGENDA = eventoId;
+        await apiAtualizar(aba, linha, { ID_EVENTO_AGENDA: eventoId });
+      }
+    }catch(erroAgenda){
+      mostrarToast("Agendado no app, mas não sincronizou com o Google Agenda: " + erroAgenda.message);
+    }
   }catch(err){
     ui.salvandoAgendamento = false;
     ui.erroAgendamento = "Não foi possível agendar: " + err.message;
@@ -1927,10 +2065,16 @@ async function cancelarAgendamentoCard(aba, linha){
   renderCardExtra(linha);
 
   try{
+    const idxAntes = estado.contatos.findIndex(x => x.linha === linha);
+    const eventoIdAntigo = idxAntes !== -1 ? estado.contatos[idxAntes].ID_EVENTO_AGENDA : null;
+
     await apiCancelarAgendamento(aba, linha);
 
     const idx = estado.contatos.findIndex(x => x.linha === linha);
-    if(idx !== -1) estado.contatos[idx].AGENDAMENTO = "";
+    if(idx !== -1){
+      estado.contatos[idx].AGENDAMENTO = "";
+      estado.contatos[idx].ID_EVENTO_AGENDA = "";
+    }
     salvarCacheLocal();
 
     ui.salvandoAgendamento = false;
@@ -1939,6 +2083,10 @@ async function cancelarAgendamentoCard(aba, linha){
       atualizarCardCompleto(linha);
     }
     mostrarToast("Agendamento cancelado.");
+
+    // Apaga o evento correspondente na Agenda do Google (silenciosamente
+    // — se não conseguir, o agendamento já foi removido do app mesmo assim).
+    excluirEventoAgenda(eventoIdAntigo);
   }catch(err){
     ui.salvandoAgendamento = false;
     mostrarToast("Erro ao cancelar: " + err.message);
@@ -2603,6 +2751,51 @@ function fecharAutocompleteTags(id){
   if(popup) popup.style.display = "none";
 }
 
+/* Contatos que têm agendamento marcado mas ainda não têm um evento
+   correspondente no Google Agenda — seja porque o agendamento é de
+   antes dessa função existir, seja porque a sincronização falhou na
+   hora (sem internet, etc.) e nunca foi tentada de novo. */
+function contatosAgendadosSemSincronizar(){
+  return estado.contatos.filter(c => c.AGENDAMENTO && !c.ID_EVENTO_AGENDA);
+}
+
+let sincronizandoAgendamentosGoogle = false;
+
+async function sincronizarTodosAgendamentosComGoogle(){
+  if(sincronizandoAgendamentosGoogle) return;
+
+  const pendentes = contatosAgendadosSemSincronizar();
+  if(pendentes.length === 0){
+    mostrarToast("Nenhum agendamento pendente de sincronizar.");
+    return;
+  }
+
+  sincronizandoAgendamentosGoogle = true;
+  renderTelaManutencao();
+
+  let sucesso = 0;
+  let erros = 0;
+
+  for(const c of pendentes){
+    try{
+      const dataHoraIso = brDataHoraParaInputValue(c.AGENDAMENTO);
+      const eventoId = await criarOuAtualizarEventoAgenda(c, dataHoraIso);
+      if(eventoId){
+        c.ID_EVENTO_AGENDA = eventoId;
+        await apiAtualizar(c.aba, c.linha, { ID_EVENTO_AGENDA: eventoId });
+        sucesso++;
+      }
+    }catch(err){
+      erros++;
+    }
+  }
+
+  sincronizandoAgendamentosGoogle = false;
+  salvarCacheLocal();
+  mostrarToast(`Sincronização concluída: ${sucesso} agendamento${sucesso === 1 ? "" : "s"} enviado${sucesso === 1 ? "" : "s"} pro Google Agenda${erros > 0 ? `, ${erros} com erro` : ""}`);
+  renderTelaManutencao();
+}
+
 function renderTelaManutencao(){
   const sheet = document.getElementById("sheet");
   const listaMensagens = obterMensagensWhatsapp();
@@ -2640,6 +2833,23 @@ function renderTelaManutencao(){
       <div style="height:16px;"></div>
 
       <div class="mensagem-whatsapp-box">
+        <div class="mensagem-whatsapp-titulo">Google Agenda</div>
+        <p style="color:var(--ink-faint);font-size:12px;margin:0 0 10px;">
+          ${(() => {
+            const pendentes = contatosAgendadosSemSincronizar().length;
+            return pendentes > 0
+              ? `${pendentes} agendamento${pendentes === 1 ? "" : "s"} ainda ${pendentes === 1 ? "não tem" : "não têm"} evento no Google Agenda (agendamentos antigos, de antes dessa função existir, ou que falharam por falta de internet na hora).`
+              : "Todos os agendamentos já têm evento no Google Agenda.";
+          })()}
+        </p>
+        <button class="btn ghost" id="btnSincronizarAgendamentos" style="width:100%;" ${sincronizandoAgendamentosGoogle ? "disabled" : ""}>
+          ${sincronizandoAgendamentosGoogle ? "Sincronizando..." : "Sincronizar agendamento"}
+        </button>
+      </div>
+
+      <div style="height:16px;"></div>
+
+      <div class="mensagem-whatsapp-box">
         <div class="mensagem-whatsapp-titulo">Gerenciar listas de opções</div>
         <p style="color:var(--ink-faint);font-size:12px;margin:0 0 10px;">
           Adicione ou remova as opções de cada lista suspensa. Ao remover uma opção que já está em uso, você escolhe pra qual outra opção transferir os contatos (ou deixar em branco).
@@ -2650,6 +2860,7 @@ function renderTelaManutencao(){
   `;
 
   document.getElementById("fecharSheet").addEventListener("click", fecharTelaManutencao);
+  document.getElementById("btnSincronizarAgendamentos").addEventListener("click", sincronizarTodosAgendamentosComGoogle);
 
   document.getElementById("btnNovaMensagemWhatsapp").addEventListener("click", () => {
     adicionarMensagemWhatsapp();
