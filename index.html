@@ -360,8 +360,9 @@ const GOOGLE_CLIENT_ID = "940850704715-lao03stkfdkgjieklk1419rlts3qt53q.apps.goo
    contato do Google depois que ele for importado com sucesso. */
 const GOOGLE_CONTACTS_SCOPE = "https://www.googleapis.com/auth/contacts";
 
-/* Escopo do Google Agenda — só cria/edita/apaga os EVENTOS que o
-   próprio app criar, não dá acesso de leitura à agenda inteira. */
+/* ID da agenda específica (não a "primary" da conta) onde os eventos
+   de agendamento devem ser criados. */
+const GOOGLE_CALENDAR_ID = "2ecd8f0d52dac8f30b79ceeaf85e563568d25dbc50b1bd330f02aa4766aeccb6@group.calendar.google.com";
 const GOOGLE_CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events";
 
 /* Caractere que marca um contato como "de trabalho" no Google Contatos.
@@ -1962,9 +1963,10 @@ async function criarOuAtualizarEventoAgenda(c, dataHoraIso){
   };
 
   const eventoExistente = c.ID_EVENTO_AGENDA;
+  const calendarioCodificado = encodeURIComponent(GOOGLE_CALENDAR_ID);
   const url = eventoExistente
-    ? `https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventoExistente}`
-    : "https://www.googleapis.com/calendar/v3/calendars/primary/events";
+    ? `https://www.googleapis.com/calendar/v3/calendars/${calendarioCodificado}/events/${eventoExistente}`
+    : `https://www.googleapis.com/calendar/v3/calendars/${calendarioCodificado}/events`;
 
   const resposta = await fetch(url, {
     method: eventoExistente ? "PATCH" : "POST",
@@ -1992,7 +1994,8 @@ async function excluirEventoAgenda(eventoId){
   if(!eventoId) return;
   try{
     const token = await obterTokenGoogleCalendar();
-    await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventoId}`, {
+    const calendarioCodificado = encodeURIComponent(GOOGLE_CALENDAR_ID);
+    await fetch(`https://www.googleapis.com/calendar/v3/calendars/${calendarioCodificado}/events/${eventoId}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}` }
     });
