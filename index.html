@@ -66,6 +66,31 @@
   .dia-semana-agenda{ font-size:12px; color:var(--ink-faint); margin-top:4px; font-weight:600; }
   .mensagem-whatsapp-box{ background:#F7F5EF; border:1px solid #E5E0D2; border-radius:12px; padding:12px; }
   .mensagem-whatsapp-titulo{ font-weight:600; font-size:13.5px; margin-bottom:4px; }
+  .mensagem-item{ background:#fff; border:1.3px solid #E5E0D2; border-radius:10px; padding:8px; margin-bottom:8px; }
+  .mensagem-item.padrao{ border-color:var(--accent); }
+  .mensagem-item-topo{ display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+  .mensagem-item-radio{ flex-shrink:0; width:16px; height:16px; accent-color:var(--accent); }
+  .mensagem-item-nome{ flex:1; border:none; background:none; font-size:13px; font-weight:600; padding:2px 0; }
+  .mensagem-item-excluir{
+    flex-shrink:0; width:22px; height:22px; border-radius:50%; border:none;
+    background:#EFE9DA; color:var(--ink-soft); font-size:12px;
+  }
+  .mensagem-item-excluir:hover{ background:#E4453A; color:#fff; }
+  .mensagem-item-texto{
+    width:100%; box-sizing:border-box; border:1px solid #DAD5C8; border-radius:8px;
+    padding:8px 10px; font-size:13px; font-family:inherit; resize:vertical;
+  }
+  .autocomplete-tags{
+    position:absolute; left:0; right:0; bottom:calc(100% + 4px); z-index:20;
+    background:#fff; border:1.3px solid var(--border); border-radius:8px;
+    box-shadow:0 4px 14px rgba(0,0,0,.15); overflow:hidden;
+  }
+  .autocomplete-tag-item{
+    display:block; width:100%; text-align:left; background:none; border:none;
+    padding:9px 10px; font-size:12.5px; color:var(--ink); border-bottom:1px solid var(--border);
+  }
+  .autocomplete-tag-item:last-child{ border-bottom:none; }
+  .autocomplete-tag-item:hover{ background:var(--bg); }
   .campo-com-microfone{ display:flex; align-items:flex-start; gap:6px; }
   .campo-com-microfone textarea{ flex:1; min-width:0; }
   .btn-microfone{
@@ -577,38 +602,112 @@ function mostrarToast(msg){
   window._toastTimer = setTimeout(() => t.classList.remove("show"), 2600);
 }
 
-const CHAVE_MENSAGEM_WHATSAPP = "mensagemWhatsappTemplate";
+const CHAVE_MENSAGENS_WHATSAPP = "mensagensWhatsappLista";
+const CHAVE_MENSAGEM_PADRAO_ID = "mensagemWhatsappPadraoId";
 const MENSAGEM_WHATSAPP_PADRAO = "Oi {nome}, {periodo}! Aqui é o Drago da Wise Up!";
 
-function obterMensagemWhatsappTemplate(){
+const TAGS_MENSAGEM_DISPONIVEIS = [
+  { chave: "nome", rotulo: "{nome} — primeiro nome do contato" },
+  { chave: "indicado_por", rotulo: "{indicado_por} — primeiro nome de quem indicou" },
+  { chave: "periodo", rotulo: "{periodo} — Bom dia / Boa tarde / Boa noite" }
+];
+
+/* Lê a lista de mensagens salvas. Se nunca existiu (versão antiga do
+   app, com só uma mensagem), migra automaticamente o valor antigo pra
+   dentro dessa nova lista, sem o usuário perder o que já tinha. */
+function obterMensagensWhatsapp(){
   try{
-    return localStorage.getItem(CHAVE_MENSAGEM_WHATSAPP) || MENSAGEM_WHATSAPP_PADRAO;
-  }catch(e){
-    return MENSAGEM_WHATSAPP_PADRAO;
-  }
+    const bruto = localStorage.getItem(CHAVE_MENSAGENS_WHATSAPP);
+    if(bruto){
+      const lista = JSON.parse(bruto);
+      if(Array.isArray(lista) && lista.length > 0) return lista;
+    }
+  }catch(e){ /* segue pra migração/padrão abaixo */ }
+
+  // Migração do formato antigo (uma única mensagem em outra chave)
+  let textoAntigo = MENSAGEM_WHATSAPP_PADRAO;
+  try{
+    textoAntigo = localStorage.getItem("mensagemWhatsappTemplate") || MENSAGEM_WHATSAPP_PADRAO;
+  }catch(e){ /* usa o padrão mesmo */ }
+
+  const listaInicial = [{ id: "msg_1", nome: "Padrão", texto: textoAntigo }];
+  salvarMensagensWhatsapp(listaInicial);
+  return listaInicial;
 }
 
-function salvarMensagemWhatsappTemplate(texto){
+function salvarMensagensWhatsapp(lista){
   try{
-    localStorage.setItem(CHAVE_MENSAGEM_WHATSAPP, texto);
-  }catch(e){
-    // se o navegador bloquear localStorage, a mensagem simplesmente
-    // não fica salva pra próxima vez — não quebra o resto do app.
-  }
+    localStorage.setItem(CHAVE_MENSAGENS_WHATSAPP, JSON.stringify(lista));
+  }catch(e){ /* localStorage bloqueado — não quebra o app */ }
+}
+
+function obterIdMensagemPadrao(){
+  const lista = obterMensagensWhatsapp();
+  let id = null;
+  try{ id = localStorage.getItem(CHAVE_MENSAGEM_PADRAO_ID); }catch(e){}
+  if(id && lista.some(m => m.id === id)) return id;
+  return lista[0].id;
+}
+
+function definirMensagemPadrao(id){
+  try{ localStorage.setItem(CHAVE_MENSAGEM_PADRAO_ID, id); }catch(e){}
+}
+
+function obterMensagemWhatsappTemplate(){
+  const lista = obterMensagensWhatsapp();
+  const idPadrao = obterIdMensagemPadrao();
+  const msg = lista.find(m => m.id === idPadrao) || lista[0];
+  return msg ? msg.texto : MENSAGEM_WHATSAPP_PADRAO;
+}
+
+function gerarIdMensagem(){
+  return "msg_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
+}
+
+function adicionarMensagemWhatsapp(){
+  const lista = obterMensagensWhatsapp();
+  lista.push({ id: gerarIdMensagem(), nome: "Nova mensagem", texto: "" });
+  salvarMensagensWhatsapp(lista);
+}
+
+function atualizarMensagemWhatsapp(id, dados){
+  const lista = obterMensagensWhatsapp();
+  const msg = lista.find(m => m.id === id);
+  if(msg) Object.assign(msg, dados);
+  salvarMensagensWhatsapp(lista);
+}
+
+function excluirMensagemWhatsapp(id){
+  let lista = obterMensagensWhatsapp();
+  if(lista.length <= 1) return; // sempre precisa sobrar pelo menos uma
+  lista = lista.filter(m => m.id !== id);
+  salvarMensagensWhatsapp(lista);
+  if(obterIdMensagemPadrao() === id) definirMensagemPadrao(lista[0].id);
 }
 
 function primeiroNomeDe(textoCompleto){
   return String(textoCompleto || "").trim().split(" ")[0] || "";
 }
 
-function periodoDoDiaAtual(){
-  const hora = new Date().getHours();
-  if(hora >= 5 && hora < 12) return "Bom dia";
-  if(hora >= 12 && hora < 18) return "Boa tarde";
+/* Calcula "Bom dia"/"Boa tarde"/"Boa noite" considerando o horário
+   LOCAL do contato, não o horário de quem está usando o app. Parte do
+   princípio de que o aparelho está no horário de Brasília (fuso de
+   referência do negócio) e desloca pelo fuso relativo do contato
+   (campo FUSO, ex: "0", "-2", "+4"). */
+function periodoDoDiaAtual(fusoRelativoContato){
+  const agora = new Date();
+  const horaBrasiliaAtual = agora.getHours() + (agora.getMinutes() / 60);
+  const offset = parseFloat(fusoRelativoContato) || 0;
+
+  let horaContato = (horaBrasiliaAtual + offset) % 24;
+  if(horaContato < 0) horaContato += 24;
+
+  if(horaContato >= 5 && horaContato < 12) return "Bom dia";
+  if(horaContato >= 12 && horaContato < 18) return "Boa tarde";
   return "Boa noite";
 }
 
-function linkWhatsapp(telefone, nome, indicadoPor){
+function linkWhatsapp(telefone, nome, indicadoPor, fusoRelativoContato){
   const digitos = String(telefone || "").replace(/\D/g, "");
   if(digitos === "") return "#";
 
@@ -616,7 +715,7 @@ function linkWhatsapp(telefone, nome, indicadoPor){
   const mensagem = template
     .replace(/\{nome\}/gi, primeiroNomeDe(nome))
     .replace(/\{indicado_por\}/gi, primeiroNomeDe(indicadoPor))
-    .replace(/\{periodo\}/gi, periodoDoDiaAtual());
+    .replace(/\{periodo\}/gi, periodoDoDiaAtual(fusoRelativoContato));
 
   return "https://wa.me/" + digitos + "?text=" + encodeURIComponent(mensagem);
 }
@@ -958,7 +1057,7 @@ function renderTudo(){
               </button>
               <button class="menu-topo-item" id="menuItemImportar">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                Importar contato em lote
+                Importar contatos
               </button>
               <button class="menu-topo-item" id="menuItemRelatorio">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="20" x2="6" y2="12"/><line x1="12" y1="20" x2="12" y2="6"/><line x1="18" y1="20" x2="18" y2="15"/></svg>
@@ -1431,7 +1530,7 @@ function cardInnerHtml(c){
       <div class="nome">${c.NOME || "(sem nome)"}</div>
       <div class="card-header-actions">
         <button class="icon-btn info ${ui.expandido ? "active" : ""}" aria-label="Mais informações">${iconInfo()}</button>
-        <a class="icon-btn whatsapp" href="${linkWhatsapp(c.TELEFONE, c.NOME, c.INDICADO_POR)}" target="_blank" rel="noopener" aria-label="WhatsApp">${iconWhatsapp()}</a>
+        <a class="icon-btn whatsapp" href="${linkWhatsapp(c.TELEFONE, c.NOME, c.INDICADO_POR, c.FUSO)}" target="_blank" rel="noopener" aria-label="WhatsApp">${iconWhatsapp()}</a>
       </div>
     </div>
     <div class="tel">${c.TELEFONE || "—"}</div>
@@ -1506,7 +1605,7 @@ function cardExtraConteudo(c, ui){
     </div>
     <div class="detail-grid">
       ${campoDetalheLinha("Data do Telefone", c.REGISTRO_TELEFONE, false)}
-      ${campoDetalheLinha("Data do Agendamento", c.AGENDAMENTO, false)}
+      ${campoDetalheLinha("Data do Agendamento", c.AGENDAMENTO ? c.AGENDAMENTO + " (" + calcularDiaSemanaTexto(brDataHoraParaInputValue(c.AGENDAMENTO)) + ")" : "", false)}
     </div>
     <div class="detail-actions">
       <button class="btn danger" data-acao="excluir">Excluir</button>
@@ -1587,7 +1686,7 @@ function cardAgendamentoWidget(c, ui){
   return `
     <div class="detail-field">
       <div class="k">Status</div>
-      <div class="v">Agendado para <b>${agendamentoAtual}</b></div>
+      <div class="v">Agendado para <b>${agendamentoAtual}</b> <span class="dia-semana-agenda" style="display:inline;">(${calcularDiaSemanaTexto(brDataHoraParaInputValue(agendamentoAtual))})</span></div>
     </div>
     <div class="detail-actions">
       <button class="btn ghost" data-acao="reagendar">Reagendar</button>
@@ -2327,7 +2426,7 @@ function renderTelaImportarLote(){
 
   sheet.innerHTML = `
     <div class="sheet-handle"></div>
-    <div class="sheet-header"><h3>Importar contato em lote</h3><button class="close" id="fecharSheet">✕</button></div>
+    <div class="sheet-header"><h3>Importar contatos</h3><button class="close" id="fecharSheet">✕</button></div>
     <div class="sheet-body">
 
       <button class="btn ghost" id="baixarPlanilhaContatos" style="width:100%;">Exportar planilha de contatos</button>
@@ -2461,20 +2560,81 @@ function fecharTelaManutencao(){
   fecharSheet();
 }
 
+/* Detecta se o cursor está logo depois de um "@" (com ou sem letras
+   já digitadas depois), pra oferecer o atalho de tags. */
+function detectarAtalhoTag(textarea){
+  const valor = textarea.value;
+  const pos = textarea.selectionStart;
+  const antesCursor = valor.substring(0, pos);
+  const match = antesCursor.match(/@([a-zA-Z_]*)$/);
+  if(!match) return null;
+  return { termo: match[1].toLowerCase(), inicio: pos - match[0].length, fim: pos };
+}
+
+function mostrarAutocompleteTags(id, textarea, deteccao){
+  const popup = document.getElementById("autocompleteTags_" + id);
+  if(!popup) return;
+
+  const opcoes = TAGS_MENSAGEM_DISPONIVEIS.filter(t => t.chave.startsWith(deteccao.termo));
+  if(opcoes.length === 0){ popup.style.display = "none"; return; }
+
+  popup.innerHTML = opcoes.map(o => `<button type="button" class="autocomplete-tag-item" data-chave="${o.chave}">${o.rotulo}</button>`).join("");
+  popup.style.display = "block";
+
+  popup.querySelectorAll(".autocomplete-tag-item").forEach(btn => {
+    // mousedown (não click) pra disparar antes do blur do textarea
+    btn.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      const chave = btn.dataset.chave;
+      const valorAtual = textarea.value;
+      const novoValor = valorAtual.substring(0, deteccao.inicio) + "{" + chave + "}" + valorAtual.substring(deteccao.fim);
+      textarea.value = novoValor;
+      atualizarMensagemWhatsapp(id, { texto: novoValor });
+      popup.style.display = "none";
+      textarea.focus();
+      const novaPosicao = deteccao.inicio + chave.length + 2;
+      textarea.setSelectionRange(novaPosicao, novaPosicao);
+    });
+  });
+}
+
+function fecharAutocompleteTags(id){
+  const popup = document.getElementById("autocompleteTags_" + id);
+  if(popup) popup.style.display = "none";
+}
+
 function renderTelaManutencao(){
   const sheet = document.getElementById("sheet");
+  const listaMensagens = obterMensagensWhatsapp();
+  const idPadrao = obterIdMensagemPadrao();
 
   sheet.innerHTML = `
     <div class="sheet-handle"></div>
     <div class="sheet-header"><h3>Configurações</h3><button class="close" id="fecharSheet">✕</button></div>
     <div class="sheet-body">
       <div class="mensagem-whatsapp-box">
-        <div class="mensagem-whatsapp-titulo">Mensagem padrão do WhatsApp</div>
-        <p style="color:var(--ink-faint);font-size:12px;margin:0 0 8px;">
-          Use <b>{nome}</b>, <b>{indicado_por}</b> e <b>{periodo}</b> em qualquer lugar do texto — são trocados automaticamente pelo primeiro nome do contato, o primeiro nome de quem indicou, e "Bom dia" / "Boa tarde" / "Boa noite" conforme o horário atual. Essa mensagem é usada sempre que você clica no botão do WhatsApp na lista.
+        <div class="mensagem-whatsapp-titulo">Mensagens do WhatsApp</div>
+        <p style="color:var(--ink-faint);font-size:12px;margin:0 0 10px;">
+          Marque a bolinha da mensagem que deve ser a <b>padrão</b> (usada ao clicar no ícone do WhatsApp na lista). Você pode ter várias salvas e trocar qual é a padrão quando quiser. Use <b>{nome}</b>, <b>{indicado_por}</b> e <b>{periodo}</b> no texto, ou digite <b>@</b> pra escolher a tag rapidamente. {periodo} considera o horário local do contato pelo fuso dele.
         </p>
-        <textarea id="mensagemWhatsappInput" rows="3" style="width:100%;box-sizing:border-box;border:1px solid #DAD5C8;border-radius:10px;padding:8px 10px;font-size:13px;font-family:inherit;resize:vertical;">${escapeAttr(obterMensagemWhatsappTemplate())}</textarea>
-        <button class="btn ghost" id="salvarMensagemWhatsapp" style="margin-top:8px;">Salvar mensagem</button>
+
+        <div id="listaMensagensWhatsapp">
+          ${listaMensagens.map(m => `
+            <div class="mensagem-item ${m.id === idPadrao ? "padrao" : ""}">
+              <div class="mensagem-item-topo">
+                <input type="radio" name="mensagemPadrao" class="mensagem-item-radio" value="${m.id}" ${m.id === idPadrao ? "checked" : ""}>
+                <input type="text" class="mensagem-item-nome" data-id="${m.id}" value="${escapeAttr(m.nome)}" placeholder="Nome da mensagem">
+                ${listaMensagens.length > 1 ? `<button type="button" class="mensagem-item-excluir" data-id="${m.id}" aria-label="Excluir mensagem">✕</button>` : ""}
+              </div>
+              <div style="position:relative;">
+                <textarea class="mensagem-item-texto" data-id="${m.id}" rows="3">${escapeAttr(m.texto)}</textarea>
+                <div class="autocomplete-tags" id="autocompleteTags_${m.id}" style="display:none;"></div>
+              </div>
+            </div>
+          `).join("")}
+        </div>
+
+        <button class="btn ghost" id="btnNovaMensagemWhatsapp" style="width:100%;margin-top:4px;">+ Nova mensagem</button>
       </div>
 
       <div style="height:16px;"></div>
@@ -2491,10 +2651,45 @@ function renderTelaManutencao(){
 
   document.getElementById("fecharSheet").addEventListener("click", fecharTelaManutencao);
 
-  document.getElementById("salvarMensagemWhatsapp").addEventListener("click", () => {
-    const texto = document.getElementById("mensagemWhatsappInput").value;
-    salvarMensagemWhatsappTemplate(texto);
-    mostrarToast("Mensagem do WhatsApp salva");
+  document.getElementById("btnNovaMensagemWhatsapp").addEventListener("click", () => {
+    adicionarMensagemWhatsapp();
+    renderTelaManutencao();
+  });
+
+  document.querySelectorAll(".mensagem-item-radio").forEach(radio => {
+    radio.addEventListener("change", (e) => {
+      definirMensagemPadrao(e.target.value);
+      renderTelaManutencao();
+    });
+  });
+
+  document.querySelectorAll(".mensagem-item-nome").forEach(input => {
+    input.addEventListener("input", (e) => {
+      atualizarMensagemWhatsapp(e.target.dataset.id, { nome: e.target.value });
+    });
+  });
+
+  document.querySelectorAll(".mensagem-item-excluir").forEach(btn => {
+    btn.addEventListener("click", () => {
+      excluirMensagemWhatsapp(btn.dataset.id);
+      renderTelaManutencao();
+    });
+  });
+
+  document.querySelectorAll(".mensagem-item-texto").forEach(textarea => {
+    const id = textarea.dataset.id;
+
+    textarea.addEventListener("input", (e) => {
+      atualizarMensagemWhatsapp(id, { texto: e.target.value });
+      const deteccao = detectarAtalhoTag(e.target);
+      if(deteccao) mostrarAutocompleteTags(id, e.target, deteccao);
+      else fecharAutocompleteTags(id);
+    });
+
+    textarea.addEventListener("blur", () => {
+      // pequeno atraso pra permitir o clique numa sugestão antes de fechar
+      setTimeout(() => fecharAutocompleteTags(id), 150);
+    });
   });
 
   ["referidos", "statusComercial", "statusComportamental", "profissao"].forEach(chaveApp => {
