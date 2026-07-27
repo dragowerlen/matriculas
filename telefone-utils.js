@@ -79,7 +79,63 @@ const PAISES = {
   "7": { pais: "Rússia", regiao: "Europa", tz: "Europe/Moscow" },
   "90": { pais: "Turquia", regiao: "Europa/Ásia", tz: "Europe/Istanbul" },
   "212": { pais: "Marrocos", regiao: "África", tz: "Africa/Casablanca" },
-  "20": { pais: "Egito", regiao: "África", tz: "Africa/Cairo" }
+  "20": { pais: "Egito", regiao: "África", tz: "Africa/Cairo" },
+
+  // --- Ásia ---
+  "91": { pais: "Índia", regiao: "Ásia", tz: "Asia/Kolkata" },
+  "92": { pais: "Paquistão", regiao: "Ásia", tz: "Asia/Karachi" },
+  "880": { pais: "Bangladesh", regiao: "Ásia", tz: "Asia/Dhaka" },
+  "94": { pais: "Sri Lanka", regiao: "Ásia", tz: "Asia/Colombo" },
+  "977": { pais: "Nepal", regiao: "Ásia", tz: "Asia/Kathmandu" },
+  "63": { pais: "Filipinas", regiao: "Ásia", tz: "Asia/Manila" },
+  "62": { pais: "Indonésia", regiao: "Ásia", tz: "Asia/Jakarta" },
+  "60": { pais: "Malásia", regiao: "Ásia", tz: "Asia/Kuala_Lumpur" },
+  "65": { pais: "Singapura", regiao: "Ásia", tz: "Asia/Singapore" },
+  "66": { pais: "Tailândia", regiao: "Ásia", tz: "Asia/Bangkok" },
+  "84": { pais: "Vietnã", regiao: "Ásia", tz: "Asia/Ho_Chi_Minh" },
+  "886": { pais: "Taiwan", regiao: "Ásia", tz: "Asia/Taipei" },
+  "852": { pais: "Hong Kong", regiao: "Ásia", tz: "Asia/Hong_Kong" },
+  "853": { pais: "Macau", regiao: "Ásia", tz: "Asia/Macau" },
+
+  // --- África ---
+  "234": { pais: "Nigéria", regiao: "África", tz: "Africa/Lagos" },
+  "254": { pais: "Quênia", regiao: "África", tz: "Africa/Nairobi" },
+  "233": { pais: "Gana", regiao: "África", tz: "Africa/Accra" },
+  "225": { pais: "Costa do Marfim", regiao: "África", tz: "Africa/Abidjan" },
+  "221": { pais: "Senegal", regiao: "África", tz: "Africa/Dakar" },
+  "216": { pais: "Tunísia", regiao: "África", tz: "Africa/Tunis" },
+  "213": { pais: "Argélia", regiao: "África", tz: "Africa/Algiers" },
+  "218": { pais: "Líbia", regiao: "África", tz: "Africa/Tripoli" },
+  "251": { pais: "Etiópia", regiao: "África", tz: "Africa/Addis_Ababa" },
+
+  // --- Europa (Leste/adicionais) ---
+  "385": { pais: "Croácia", regiao: "Europa", tz: "Europe/Zagreb" },
+  "386": { pais: "Eslovênia", regiao: "Europa", tz: "Europe/Ljubljana" },
+  "421": { pais: "Eslováquia", regiao: "Europa", tz: "Europe/Bratislava" },
+  "381": { pais: "Sérvia", regiao: "Europa", tz: "Europe/Belgrade" },
+  "387": { pais: "Bósnia e Herzegovina", regiao: "Europa", tz: "Europe/Sarajevo" },
+  "359": { pais: "Bulgária", regiao: "Europa", tz: "Europe/Sofia" },
+  "380": { pais: "Ucrânia", regiao: "Europa", tz: "Europe/Kyiv" },
+  "375": { pais: "Belarus", regiao: "Europa", tz: "Europe/Minsk" },
+  "370": { pais: "Lituânia", regiao: "Europa", tz: "Europe/Vilnius" },
+  "371": { pais: "Letônia", regiao: "Europa", tz: "Europe/Riga" },
+  "372": { pais: "Estônia", regiao: "Europa", tz: "Europe/Tallinn" },
+
+  // --- Oriente Médio (adicionais) ---
+  "962": { pais: "Jordânia", regiao: "Oriente Médio", tz: "Asia/Amman" },
+  "964": { pais: "Iraque", regiao: "Oriente Médio", tz: "Asia/Baghdad" },
+  "98": { pais: "Irã", regiao: "Oriente Médio", tz: "Asia/Tehran" },
+  "963": { pais: "Síria", regiao: "Oriente Médio", tz: "Asia/Damascus" },
+  "973": { pais: "Bahrein", regiao: "Oriente Médio", tz: "Asia/Bahrain" },
+  "968": { pais: "Omã", regiao: "Oriente Médio", tz: "Asia/Muscat" },
+
+  // --- América Central/Caribe (fora do padrão NANP +1) ---
+  "502": { pais: "Guatemala", regiao: "América Central", tz: "America/Guatemala" },
+  "504": { pais: "Honduras", regiao: "América Central", tz: "America/Tegucigalpa" },
+  "503": { pais: "El Salvador", regiao: "América Central", tz: "America/El_Salvador" },
+  "505": { pais: "Nicarágua", regiao: "América Central", tz: "America/Managua" },
+  "501": { pais: "Belize", regiao: "América Central", tz: "America/Belize" },
+  "509": { pais: "Haiti", regiao: "América Central", tz: "America/Port-au-Prince" }
 };
 
 const DDD_BRASIL = {
@@ -182,7 +238,35 @@ const NANP_DDD = {
   "905":{pais:"Canadá",estado:"Ontário",cidade:"Toronto (região)",tz:"America/Toronto"},"613":{pais:"Canadá",estado:"Ontário",cidade:"Ottawa",tz:"America/Toronto"},
   "514":{pais:"Canadá",estado:"Quebec",cidade:"Montreal",tz:"America/Toronto"},"438":{pais:"Canadá",estado:"Quebec",cidade:"Montreal",tz:"America/Toronto"},
   "604":{pais:"Canadá",estado:"Colúmbia Britânica",cidade:"Vancouver",tz:"America/Vancouver"},"403":{pais:"Canadá",estado:"Alberta",cidade:"Calgary",tz:"America/Edmonton"},
-  "780":{pais:"Canadá",estado:"Alberta",cidade:"Edmonton",tz:"America/Edmonton"}
+  "780":{pais:"Canadá",estado:"Alberta",cidade:"Edmonton",tz:"America/Edmonton"},
+
+  // Territórios e países do Caribe que também usam DDI +1 — sem essas
+  // entradas, cairiam incorretamente como "EUA/Canadá" genérico.
+  "787":{pais:"Porto Rico (EUA)",estado:"Porto Rico",cidade:"San Juan",tz:"America/Puerto_Rico"},
+  "939":{pais:"Porto Rico (EUA)",estado:"Porto Rico",cidade:"San Juan",tz:"America/Puerto_Rico"},
+  "340":{pais:"Ilhas Virgens Americanas (EUA)",estado:"Ilhas Virgens Americanas",cidade:"Charlotte Amalie",tz:"America/Puerto_Rico"},
+  "671":{pais:"Guam (EUA)",estado:"Guam",cidade:"Hagåtña",tz:"Pacific/Guam"},
+  "809":{pais:"República Dominicana",estado:"República Dominicana",cidade:"Santo Domingo",tz:"America/Santo_Domingo"},
+  "829":{pais:"República Dominicana",estado:"República Dominicana",cidade:"Santo Domingo",tz:"America/Santo_Domingo"},
+  "849":{pais:"República Dominicana",estado:"República Dominicana",cidade:"Santo Domingo",tz:"America/Santo_Domingo"},
+  "876":{pais:"Jamaica",estado:"Jamaica",cidade:"Kingston",tz:"America/Jamaica"},
+  "658":{pais:"Jamaica",estado:"Jamaica",cidade:"Kingston",tz:"America/Jamaica"},
+  "242":{pais:"Bahamas",estado:"Bahamas",cidade:"Nassau",tz:"America/Nassau"},
+  "246":{pais:"Barbados",estado:"Barbados",cidade:"Bridgetown",tz:"America/Barbados"},
+  "868":{pais:"Trinidad e Tobago",estado:"Trinidad e Tobago",cidade:"Port of Spain",tz:"America/Port_of_Spain"},
+  "441":{pais:"Bermudas",estado:"Bermudas",cidade:"Hamilton",tz:"Atlantic/Bermuda"},
+  "345":{pais:"Ilhas Cayman",estado:"Ilhas Cayman",cidade:"George Town",tz:"America/Cayman"},
+  "758":{pais:"Santa Lúcia",estado:"Santa Lúcia",cidade:"Castries",tz:"America/St_Lucia"},
+  "473":{pais:"Granada",estado:"Granada",cidade:"St. George's",tz:"America/Grenada"},
+  "649":{pais:"Ilhas Turks e Caicos",estado:"Ilhas Turks e Caicos",cidade:"Cockburn Town",tz:"America/Grand_Turk"},
+  "284":{pais:"Ilhas Virgens Britânicas",estado:"Ilhas Virgens Britânicas",cidade:"Road Town",tz:"America/Tortola"},
+  "268":{pais:"Antígua e Barbuda",estado:"Antígua e Barbuda",cidade:"St. John's",tz:"America/Antigua"},
+  "869":{pais:"São Cristóvão e Nevis",estado:"São Cristóvão e Nevis",cidade:"Basseterre",tz:"America/St_Kitts"},
+  "784":{pais:"São Vicente e Granadinas",estado:"São Vicente e Granadinas",cidade:"Kingstown",tz:"America/St_Vincent"},
+  "767":{pais:"Dominica",estado:"Dominica",cidade:"Roseau",tz:"America/Dominica"},
+  "721":{pais:"Sint Maarten",estado:"Sint Maarten",cidade:"Philipsburg",tz:"America/Lower_Princes"},
+  "264":{pais:"Anguilla",estado:"Anguilla",cidade:"The Valley",tz:"America/Anguilla"},
+  "664":{pais:"Montserrat",estado:"Montserrat",cidade:"Brades",tz:"America/Montserrat"}
 };
 
 function somenteNumeros(v){ return v === null || v === undefined ? "" : String(v).replace(/\D/g, ""); }
@@ -228,7 +312,13 @@ function normalizarTelefone(valorOriginal){
 
 function ajustarNonoDigito(numeroSemMais){
   if(numeroSemMais.startsWith(TEL_CONFIG.DDI_BRASIL) && numeroSemMais.length === 12){
-    numeroSemMais = numeroSemMais.substring(0,4) + "9" + numeroSemMais.substring(4);
+    // Só adiciona o 9º dígito se for celular (prefixo local 6, 7, 8 ou 9).
+    // Telefones fixos (prefixo local 2, 3, 4 ou 5) continuam com 8 dígitos —
+    // adicionar o 9 neles estaria errado.
+    const primeiroDigitoLocal = numeroSemMais.charAt(4);
+    if(["6", "7", "8", "9"].includes(primeiroDigitoLocal)){
+      numeroSemMais = numeroSemMais.substring(0,4) + "9" + numeroSemMais.substring(4);
+    }
   }
   return numeroSemMais;
 }
@@ -261,8 +351,10 @@ function formatarTelefoneBrasil(numeroOriginal){
   const digitos = numero.substring(1);
   const ddi = digitos.substring(0,2);
   const ddd = digitos.substring(2,4);
-  const celular = digitos.substring(4);
-  return "+" + ddi + " " + ddd + " " + celular.substring(0,5) + "-" + celular.substring(5);
+  const numeroLocal = digitos.substring(4);
+  // Celular tem 9 dígitos locais (5+4). Fixo tem 8 dígitos locais (4+4).
+  const corte = numeroLocal.length === 9 ? 5 : 4;
+  return "+" + ddi + " " + ddd + " " + numeroLocal.substring(0, corte) + "-" + numeroLocal.substring(corte);
 }
 
 function formatarTelefoneInternacional(numeroOriginal){
@@ -347,7 +439,7 @@ function obterFusoPaisRegiaoEUACanada(numero){
     return { fuso: formatarFuso(relativo), pais: "EUA/Canadá", regiao: "DDD " + ddd };
   }
   const relativo = calcularFusoRelativo(info.tz);
-  return { fuso: formatarFuso(relativo), pais: info.pais, regiao: info.cidade + "-" + info.estado };
+  return { fuso: formatarFuso(relativo), pais: info.pais, regiao: info.estado + "-" + info.cidade };
 }
 
 /**
