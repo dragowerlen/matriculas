@@ -234,6 +234,22 @@ async function apiExcluirOpcao(chaveApp, valorAntigo, novoValor){
   return { sucesso: true };
 }
 
+/* Troca o valor de um campo em TODOS os contatos que tiverem o valor
+   antigo, de uma vez só — sem excluir a opção da lista (diferente de
+   apiExcluirOpcao, que reatribui E remove a opção). */
+async function apiSubstituirValorEmMassa(chaveApp, valorAntigo, valorNovo){
+  const campo = MAPA_CAMPO_OPCOES[chaveApp];
+  if(!campo) throw new Error("Campo desconhecido: " + chaveApp);
+
+  const { error } = await supabaseClient
+    .from("contatos")
+    .update({ [campo]: valorNovo })
+    .eq(campo, valorAntigo);
+
+  if(error) throw new Error(error.message);
+  return { sucesso: true };
+}
+
 /* ============================================================
  * apiDetalhe — todos os campos de 1 contato + duplicados (outras
  * linhas com o mesmo telefone).
