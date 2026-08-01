@@ -1223,7 +1223,12 @@ function renderTelaFiltro(){
       <div class="filter-grid">${chipBotao("PROFISSAO")}${chipBotao("REGISTRO_STATUS_COMERCIAL")}${chipBotao("REGISTRO_STATUS_COMPORTAMENTAL")}</div>
       <div class="filter-grid">
         ${chipBotao("REGISTRO_TELEFONE")}${chipBotao("AGENDAMENTO")}
-        <button type="button" class="chip grid ${temFiltroPraLimpar ? "active" : ""}" id="btnLimparFiltro" ${temFiltroPraLimpar ? "" : "disabled"}>Limpar Filtro</button>
+        <div style="display:flex;gap:6px;">
+          <button type="button" class="chip grid ${temFiltroPraLimpar ? "active" : ""}" id="btnLimparFiltro" style="flex:1;" ${temFiltroPraLimpar ? "" : "disabled"}>Limpar</button>
+          <button type="button" class="btn-icon-claro" id="btnBaixarFiltrado" aria-label="Baixar lista filtrada em Excel/CSV" title="Baixar lista filtrada">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </button>
+        </div>
       </div>
 
       ${estado.filtroCategoriaAtiva ? renderConteudoExpandidoFiltro(mapaCampos[estado.filtroCategoriaAtiva]) : ""}
@@ -1279,6 +1284,8 @@ function renderTelaFiltro(){
     limparTodosFiltros();
     renderTelaFiltro();
   });
+
+  document.getElementById("btnBaixarFiltrado").addEventListener("click", baixarPlanilhaFiltrada);
 }
 
 /* Limpa todos os filtros ativos (checklist + data) de uma vez, sem
@@ -1348,7 +1355,7 @@ function renderListaEContagem(){
 
 /* Atraso antes de remover um card da lista quando ele deixa de bater
    com o filtro ativo (só depois de mudar Status Comercial e/ou Status
-   do Contato). Fica em 30s e reinicia a contagem se o outro status
+   do Contato). Fica em 60s e reinicia a contagem se o outro status
    também for alterado logo em seguida — assim mudar só um dos dois
    não faz o contato sumir antes de você ajustar o segundo. */
 const timeoutsRemocaoCard = {};
@@ -1357,7 +1364,7 @@ function agendarRemocaoCardComFiltro(linha){
   timeoutsRemocaoCard[linha] = setTimeout(() => {
     delete timeoutsRemocaoCard[linha];
     sincronizarCardComFiltroAtivo(linha);
-  }, 30000);
+  }, 60000);
 }
 
 async function handleMudancaNaLista(e){
@@ -3080,14 +3087,14 @@ function escaparCampoCsv(valor){
   return texto;
 }
 
-function baixarPlanilhaDeContatos(){
-  if(!estado.contatos || estado.contatos.length === 0){
-    mostrarToast("Nenhum contato carregado ainda pra exportar.");
+function gerarEBaixarCsvDeContatos(lista, sufixoNomeArquivo){
+  if(!lista || lista.length === 0){
+    mostrarToast("Nenhum contato pra exportar com esse filtro.");
     return;
   }
 
   const cabecalho = COLUNAS_EXPORTACAO.map(c => c.rotulo).join(";");
-  const linhasCsv = estado.contatos.map(c =>
+  const linhasCsv = lista.map(c =>
     COLUNAS_EXPORTACAO.map(col => escaparCampoCsv(c[col.chave])).join(";")
   );
 
@@ -3100,7 +3107,7 @@ function baixarPlanilhaDeContatos(){
 
   const dataHoje = new Date();
   const pad = n => String(n).padStart(2, "0");
-  const nomeArquivo = `contatos-matriculas-${dataHoje.getFullYear()}${pad(dataHoje.getMonth()+1)}${pad(dataHoje.getDate())}.csv`;
+  const nomeArquivo = `contatos-matriculas-${sufixoNomeArquivo}-${dataHoje.getFullYear()}${pad(dataHoje.getMonth()+1)}${pad(dataHoje.getDate())}.csv`;
 
   const link = document.createElement("a");
   link.href = url;
@@ -3110,7 +3117,15 @@ function baixarPlanilhaDeContatos(){
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
 
-  mostrarToast(`Planilha baixada (${estado.contatos.length} contatos)`);
+  mostrarToast(`Planilha baixada (${lista.length} contato${lista.length === 1 ? "" : "s"})`);
+}
+
+function baixarPlanilhaDeContatos(){
+  gerarEBaixarCsvDeContatos(estado.contatos, "todos");
+}
+
+function baixarPlanilhaFiltrada(){
+  gerarEBaixarCsvDeContatos(contatosFiltradosFinal(), "filtro");
 }
 
 async function rodarFuncaoManutencao(chave){
