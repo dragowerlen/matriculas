@@ -237,6 +237,69 @@ async function apiExcluirOpcao(chaveApp, valorAntigo, novoValor){
 /* Troca o valor de um campo em TODOS os contatos que tiverem o valor
    antigo, de uma vez só — sem excluir a opção da lista (diferente de
    apiExcluirOpcao, que reatribui E remove a opção). */
+/* ============================================================
+ * MENSAGENS DO WHATSAPP — sincronizadas via Supabase (tabela
+ * mensagens_whatsapp), pra funcionar igual em qualquer aparelho.
+ * ============================================================ */
+async function apiListarMensagensWhatsapp(){
+  const { data, error } = await supabaseClient
+    .from("mensagens_whatsapp")
+    .select("id, nome, texto, padrao")
+    .order("criado_em", { ascending: true });
+
+  if(error) throw new Error(error.message);
+  return data || [];
+}
+
+async function apiCriarMensagemWhatsapp(nome, texto, padrao){
+  const { data, error } = await supabaseClient
+    .from("mensagens_whatsapp")
+    .insert({ nome, texto, padrao: !!padrao })
+    .select("id, nome, texto, padrao")
+    .single();
+
+  if(error) throw new Error(error.message);
+  return data;
+}
+
+async function apiAtualizarMensagemWhatsapp(id, dados){
+  const { error } = await supabaseClient
+    .from("mensagens_whatsapp")
+    .update(dados)
+    .eq("id", id);
+
+  if(error) throw new Error(error.message);
+  return { sucesso: true };
+}
+
+async function apiExcluirMensagemWhatsapp(id){
+  const { error } = await supabaseClient
+    .from("mensagens_whatsapp")
+    .delete()
+    .eq("id", id);
+
+  if(error) throw new Error(error.message);
+  return { sucesso: true };
+}
+
+/* Marca uma mensagem como padrão e desmarca todas as outras — feito
+   em 2 passos porque o Supabase não tem "só um pode ser true" nativo. */
+async function apiDefinirMensagemWhatsappPadrao(id){
+  const { error: erro1 } = await supabaseClient
+    .from("mensagens_whatsapp")
+    .update({ padrao: false })
+    .neq("id", id);
+  if(erro1) throw new Error(erro1.message);
+
+  const { error: erro2 } = await supabaseClient
+    .from("mensagens_whatsapp")
+    .update({ padrao: true })
+    .eq("id", id);
+  if(erro2) throw new Error(erro2.message);
+
+  return { sucesso: true };
+}
+
 async function apiSubstituirValorEmMassa(chaveApp, valorAntigo, valorNovo){
   const campo = MAPA_CAMPO_OPCOES[chaveApp];
   if(!campo) throw new Error("Campo desconhecido: " + chaveApp);
