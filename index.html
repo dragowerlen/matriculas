@@ -430,6 +430,7 @@ const estado = {
   filtrosData: {},
   opcoes: { statusComercial: [""], statusComportamental: [""], referidos: [""], profissao: [""] },
   cardUI: {}, // linha -> { expandido, carregando, detalhe, editando, salvando, erroSalvar, agendamentoAberto, mostrarFormAgendamento, salvandoAgendamento, erroAgendamento, duplicatas }
+  mensagensWhatsapp: [],
   salvandoNovo: false,
   erroNovo: "",
   naTelaRelatorio: false,
@@ -613,8 +614,6 @@ function mostrarToast(msg){
   window._toastTimer = setTimeout(() => t.classList.remove("show"), 2600);
 }
 
-const CHAVE_MENSAGENS_WHATSAPP = "mensagensWhatsappLista";
-const CHAVE_MENSAGEM_PADRAO_ID = "mensagemWhatsappPadraoId";
 const MENSAGEM_WHATSAPP_PADRAO = "Oi {nome}, {periodo}! Aqui é o Drago da Wise Up!";
 
 const TAGS_MENSAGEM_DISPONIVEIS = [
@@ -623,77 +622,92 @@ const TAGS_MENSAGEM_DISPONIVEIS = [
   { chave: "periodo", rotulo: "{periodo} — Bom dia / Boa tarde / Boa noite" }
 ];
 
-/* Lê a lista de mensagens salvas. Se nunca existiu (versão antiga do
-   app, com só uma mensagem), migra automaticamente o valor antigo pra
-   dentro dessa nova lista, sem o usuário perder o que já tinha. */
-function obterMensagensWhatsapp(){
+/* Carrega as mensagens do Supabase (sincronizadas entre todos os
+   aparelhos) pra dentro de estado.mensagensWhatsapp. Se a tabela
+   ainda estiver vazia mas existir alguma mensagem salva localmente
+   nesse navegador (versão antiga, antes da sincronização existir),
+   migra ela automaticamente pra não perder nada. */
+async function carregarMensagensWhatsapp(){
   try{
-    const bruto = localStorage.getItem(CHAVE_MENSAGENS_WHATSAPP);
-    if(bruto){
-      const lista = JSON.parse(bruto);
-      if(Array.isArray(lista) && lista.length > 0) return lista;
+    let lista = await apiListarMensagensWhatsapp();
+
+    if(lista.length === 0){
+      let textoAntigo = null;
+      try{
+        const bruto = localStorage.getItem("mensagensWhatsappLista");
+        if(bruto){
+          const antigas = JSON.parse(bruto);
+          if(Array.isArray(antigas) && antigas.length > 0){
+            for(const m of antigas){
+              await apiCriarMensagemWhatsapp(m.nome || "Mensagem", m.texto || "", false);
+            }
+            lista = await apiListarMensagensWhatsapp();
+          }
+        }
+      }catch(e){ /* sem nada salvo localmente — segue pro padrão abaixo */ }
+
+      if(lista.length === 0){
+        const criada = await apiCriarMensagemWhatsapp("Padrão", MENSAGEM_WHATSAPP_PADRAO, true);
+        lista = [criada];
+      }
     }
-  }catch(e){ /* segue pra migração/padrão abaixo */ }
 
-  // Migração do formato antigo (uma única mensagem em outra chave)
-  let textoAntigo = MENSAGEM_WHATSAPP_PADRAO;
-  try{
-    textoAntigo = localStorage.getItem("mensagemWhatsappTemplate") || MENSAGEM_WHATSAPP_PADRAO;
-  }catch(e){ /* usa o padrão mesmo */ }
+    if(!lista.some(m => m.padrao)) lista[0].padrao = true;
 
-  const listaInicial = [{ id: "msg_1", nome: "Padrão", texto: textoAntigo }];
-  salvarMensagensWhatsapp(listaInicial);
-  return listaInicial;
-}
-
-function salvarMensagensWhatsapp(lista){
-  try{
-    localStorage.setItem(CHAVE_MENSAGENS_WHATSAPP, JSON.stringify(lista));
-  }catch(e){ /* localStorage bloqueado — não quebra o app */ }
-}
-
-function obterIdMensagemPadrao(){
-  const lista = obterMensagensWhatsapp();
-  let id = null;
-  try{ id = localStorage.getItem(CHAVE_MENSAGEM_PADRAO_ID); }catch(e){}
-  if(id && lista.some(m => m.id === id)) return id;
-  return lista[0].id;
-}
-
-function definirMensagemPadrao(id){
-  try{ localStorage.setItem(CHAVE_MENSAGEM_PADRAO_ID, id); }catch(e){}
+    estado.mensagensWhatsapp = lista;
+  }catch(err){
+    // Se der erro (sem internet na hora, por exemplo), usa uma mensagem
+    // padrão só nessa sessão, sem travar o app.
+    estado.mensagensWhatsapp = [{ id: null, nome: "Padrão", texto: MENSAGEM_WHATSAPP_PADRAO, padrao: true }];
+  }
 }
 
 function obterMensagemWhatsappTemplate(){
-  const lista = obterMensagensWhatsapp();
-  const idPadrao = obterIdMensagemPadrao();
-  const msg = lista.find(m => m.id === idPadrao) || lista[0];
+  const lista = estado.mensagensWhatsapp || [];
+  const msg = lista.find(m => m.padrao) || lista[0];
   return msg ? msg.texto : MENSAGEM_WHATSAPP_PADRAO;
 }
 
-function gerarIdMensagem(){
-  return "msg_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
+async function definirMensagemPadrao(id){
+  try{
+    await apiDefinirMensagemWhatsappPadrao(id);
+    estado.mensagensWhatsapp.forEach(m => { m.padrao = (m.id === id); });
+  }catch(err){
+    mostrarToast("Erro ao definir mensagem padrão: " + err.message);
+  }
 }
 
-function adicionarMensagemWhatsapp(){
-  const lista = obterMensagensWhatsapp();
-  lista.push({ id: gerarIdMensagem(), nome: "Nova mensagem", texto: "" });
-  salvarMensagensWhatsapp(lista);
+async function adicionarMensagemWhatsapp(){
+  try{
+    const criada = await apiCriarMensagemWhatsapp("Nova mensagem", "", false);
+    estado.mensagensWhatsapp.push(criada);
+  }catch(err){
+    mostrarToast("Erro ao criar mensagem: " + err.message);
+  }
 }
 
-function atualizarMensagemWhatsapp(id, dados){
-  const lista = obterMensagensWhatsapp();
-  const msg = lista.find(m => m.id === id);
-  if(msg) Object.assign(msg, dados);
-  salvarMensagensWhatsapp(lista);
+async function atualizarMensagemWhatsapp(id, dados){
+  const msg = estado.mensagensWhatsapp.find(m => m.id === id);
+  if(msg) Object.assign(msg, dados); // atualiza a tela na hora
+  try{
+    await apiAtualizarMensagemWhatsapp(id, dados);
+  }catch(err){
+    mostrarToast("Erro ao salvar mensagem: " + err.message);
+  }
 }
 
-function excluirMensagemWhatsapp(id){
-  let lista = obterMensagensWhatsapp();
-  if(lista.length <= 1) return; // sempre precisa sobrar pelo menos uma
-  lista = lista.filter(m => m.id !== id);
-  salvarMensagensWhatsapp(lista);
-  if(obterIdMensagemPadrao() === id) definirMensagemPadrao(lista[0].id);
+async function excluirMensagemWhatsapp(id){
+  if(estado.mensagensWhatsapp.length <= 1) return; // sempre precisa sobrar pelo menos uma
+  const eraPadrao = estado.mensagensWhatsapp.find(m => m.id === id)?.padrao;
+  try{
+    await apiExcluirMensagemWhatsapp(id);
+    estado.mensagensWhatsapp = estado.mensagensWhatsapp.filter(m => m.id !== id);
+    if(eraPadrao && estado.mensagensWhatsapp.length > 0){
+      await definirMensagemPadrao(estado.mensagensWhatsapp[0].id);
+    }
+  }catch(err){
+    mostrarToast("Erro ao excluir mensagem: " + err.message);
+  }
 }
 
 function primeiroNomeDe(textoCompleto){
@@ -994,6 +1008,7 @@ async function iniciar(){
   // pra nunca deixar o usuário travado num dado antigo por muito tempo.
   carregarContatos();
   carregarOpcoes();
+  carregarMensagensWhatsapp();
 }
 
 async function carregarContatos(){
@@ -2718,6 +2733,12 @@ function abrirTelaManutencao(){
   estado.manutencaoResultado = null;
   renderTelaManutencao();
   abrirSheetElemento();
+
+  // Busca a versão mais recente das mensagens (pode ter mudado em
+  // outro aparelho) e atualiza a tela se ela ainda estiver aberta.
+  carregarMensagensWhatsapp().then(() => {
+    if(estado.naTelaManutencao) renderTelaManutencao();
+  });
 }
 
 function fecharTelaManutencao(){
@@ -2854,8 +2875,8 @@ async function sincronizarTodosAgendamentosComGoogle(){
 
 function renderTelaManutencao(){
   const sheet = document.getElementById("sheet");
-  const listaMensagens = obterMensagensWhatsapp();
-  const idPadrao = obterIdMensagemPadrao();
+  const listaMensagens = estado.mensagensWhatsapp;
+  const idPadrao = (listaMensagens.find(m => m.padrao) || listaMensagens[0] || {}).id;
 
   sheet.innerHTML = `
     <div class="sheet-handle"></div>
@@ -2900,14 +2921,14 @@ function renderTelaManutencao(){
 
   document.getElementById("fecharSheet").addEventListener("click", fecharTelaManutencao);
 
-  document.getElementById("btnNovaMensagemWhatsapp").addEventListener("click", () => {
-    adicionarMensagemWhatsapp();
+  document.getElementById("btnNovaMensagemWhatsapp").addEventListener("click", async () => {
+    await adicionarMensagemWhatsapp();
     renderTelaManutencao();
   });
 
   document.querySelectorAll(".mensagem-item-radio").forEach(radio => {
-    radio.addEventListener("change", (e) => {
-      definirMensagemPadrao(e.target.value);
+    radio.addEventListener("change", async (e) => {
+      await definirMensagemPadrao(e.target.value);
       renderTelaManutencao();
     });
   });
@@ -2919,8 +2940,8 @@ function renderTelaManutencao(){
   });
 
   document.querySelectorAll(".mensagem-item-excluir").forEach(btn => {
-    btn.addEventListener("click", () => {
-      excluirMensagemWhatsapp(btn.dataset.id);
+    btn.addEventListener("click", async () => {
+      await excluirMensagemWhatsapp(btn.dataset.id);
       renderTelaManutencao();
     });
   });
@@ -2962,10 +2983,10 @@ function renderTelaManutencao(){
 }
 
 const ROTULO_CAMPO_OPCOES = {
-  referidos: "Referido",
-  statusComercial: "Status Comercial",
-  statusComportamental: "Status do Contato",
-  profissao: "Profissão"
+  referidos: "REFERIDO",
+  statusComercial: "STATUS COMERCIAL",
+  statusComportamental: "STATUS DO CONTATO",
+  profissao: "PROFISSÃO"
 };
 
 const CHAVE_APP_CONTATO_POR_OPCAO = {
@@ -2975,7 +2996,7 @@ const CHAVE_APP_CONTATO_POR_OPCAO = {
   referidos: "REFERIDOS"
 };
 
-const CAMPOS_COM_SUBSTITUICAO_EM_MASSA = ["statusComercial", "statusComportamental", "profissao"];
+const CAMPOS_COM_SUBSTITUICAO_EM_MASSA = ["referidos", "statusComercial", "statusComportamental", "profissao"];
 
 function renderGerenciarListaCampo(chaveApp){
   const opcoes = (estado.opcoes[chaveApp] || []).filter(o => o !== "");
