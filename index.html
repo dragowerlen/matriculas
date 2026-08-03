@@ -101,7 +101,7 @@
   .btn-microfone.ouvindo{ background:#E4453A; border-color:#E4453A; color:#fff; animation: pulsarMicrofone 1.1s infinite; }
   @keyframes pulsarMicrofone{ 0%{ box-shadow:0 0 0 0 rgba(228,69,58,.5); } 100%{ box-shadow:0 0 0 8px rgba(228,69,58,0); } }
   .gerenciar-lista-campo{ margin-bottom: 14px; }
-  .gerenciar-lista-titulo{ font-weight:600; font-size:12.5px; margin-bottom:6px; color:var(--ink); }
+  .gerenciar-lista-titulo{ font-weight:700; font-size:12.5px; margin-bottom:6px; color:#E4453A; }
   .chips-opcoes{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
   .chip-opcao{
     display:inline-flex; align-items:center; gap:5px; background:#fff; border:1px solid #DAD5C8;
@@ -261,7 +261,7 @@
 
   .detail-field{ padding: 11px 0; border-bottom: 1px solid #F0EEE6; }
   .detail-field .k{ font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-faint); font-weight: 600; margin-bottom: 3px; }
-  .detail-field .v{ font-size: 14.5px; color: var(--ink); }
+  .detail-field .v{ font-size: 14.5px; color: var(--ink); white-space: pre-line; }
   .detail-field .v.empty{ color: var(--ink-faint); font-style: italic; }
   .detail-field input, .detail-field select, .detail-field textarea{ width: 100%; padding: 9px 10px; border: 1.3px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); }
   .detail-field textarea{ min-height: 70px; resize: vertical; }
@@ -714,6 +714,11 @@ function primeiroNomeDe(textoCompleto){
   return String(textoCompleto || "").trim().split(" ")[0] || "";
 }
 
+function capitalizarPrimeiraLetra(texto){
+  const t = String(texto || "").toLowerCase().trim();
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) : "";
+}
+
 /* Calcula "Bom dia"/"Boa tarde"/"Boa noite" considerando o horário
    LOCAL do contato, não o horário de quem está usando o app. Parte do
    princípio de que o aparelho está no horário de Brasília (fuso de
@@ -889,25 +894,197 @@ function algumFiltroAtivo(){
   return false;
 }
 
-function contatosFiltradosFinal(){
-  const termoOriginal = estado.busca.trim();
-  const termoBusca = termoOriginal.toLowerCase();
-  const termoSoDigitos = termoOriginal.replace(/\D/g, "");
+/* ============================================================
+ * DUPLICADOS — quando o mesmo telefone aparece em mais de um
+ * contato, mantém só 1 registro, preservando o nome de TODOS os
+ * "Indicado por" diferentes (e a observação de cada um) e escolhendo
+ * o Referido de maior prioridade entre os duplicados.
+ * ============================================================ */
 
-  if(termoBusca !== ""){
+/* Prioridade do campo Referido ao mesclar — o valor mais "forte"
+   (mais à esquerda) vence. Valores que não estão nessa lista (opções
+   personalizadas) ficam depois desses 3, mas antes de vazio. */
+const PRIORIDADE_REFERIDOS = ["Validado", "Indicado", "Frio"];
+
+function telefoneComoChave(c){
+  return String((c && c.TELEFONE) || "").replace(/\D/g, "");
+}
+
+function agruparContatosDuplicadosPorTelefone(lista){
+  const porTelefone = {};
+  lista.forEach(c => {
+    const chave = telefoneComoChave(c);
+    if(chave === "") return; // sem telefone não dá pra comparar
+    if(!porTelefone[chave]) porTelefone[chave] = [];
+    porTelefone[chave].push(c);
+  });
+  return Object.values(porTelefone).filter(grupo => grupo.length > 1);
+}
+
+function rankReferido(valor){
+  if(!valor) return 999; // vazio é o mais fraco de todos
+  const i = PRIORIDADE_REFERIDOS.indexOf(valor);
+  return i === -1 ? 998 : i; // opção personalizada: quase o mais fraco, só perde pra vazio
+}
+
+/* Recebe um grupo (array) de contatos com o mesmo telefone e calcula
+   quem sobrevive e com quais dados atualizados, e quem deve ser
+   excluído. Não grava nada no banco — só calcula. */
+function calcularMesclagemDeGrupo(grupo){
+  const sobrevivente = grupo[0];
+  const outros = grupo.slice(1);
+  const dadosAtualizados = {};
+
+  // Indicado por + observação — junta todos os nomes DISTINTOS de
+  // quem indicou, cada um com sua observação (se tiver).
+  const indicadoresNaOrdem = [];
+  const observacaoPorIndicador = {};
+
+  grupo.forEach(c => {
+    const nomeIndicador = String(c.INDICADO_POR || "").trim();
+    if(nomeIndicador === "") return;
+    if(!indicadoresNaOrdem.includes(nomeIndicador)) indicadoresNaOrdem.push(nomeIndicador);
+    const obs = String(c.OBSERVACAO_INDICADO || "").trim();
+    if(obs !== "" && !observacaoPorIndicador[nomeIndicador]){
+      observacaoPorIndicador[nomeIndicador] = obs;
+    }
+  });
+
+  // Cada "Indicado por" fica numa linha, e a observação DELE fica na
+  // mesma posição de linha no campo de Observação — assim os dois
+  // campos continuam existindo separados (igual sempre foi), só que
+  // agora com vários indicadores empilhados, um embaixo do outro.
+  const indicadoPorMesclado = indicadoresNaOrdem.join("\n");
+  const observacaoIndicadoMesclada = indicadoresNaOrdem
+    .map(nome => observacaoPorIndicador[nome] || "")
+    .join("\n");
+
+  if(indicadoPorMesclado !== String(sobrevivente.INDICADO_POR || "").trim()){
+    dadosAtualizados.INDICADO_POR = indicadoPorMesclado;
+  }
+  if(observacaoIndicadoMesclada !== String(sobrevivente.OBSERVACAO_INDICADO || "").trim()){
+    dadosAtualizados.OBSERVACAO_INDICADO = observacaoIndicadoMesclada;
+  }
+
+  // Referido — vence o de maior prioridade (Indicado > Validado > Frio > outros > vazio)
+  let melhorReferido = sobrevivente.REFERIDOS || "";
+  grupo.forEach(c => {
+    if(rankReferido(c.REFERIDOS) < rankReferido(melhorReferido)) melhorReferido = c.REFERIDOS;
+  });
+  if(melhorReferido !== (sobrevivente.REFERIDOS || "")){
+    dadosAtualizados.REFERIDOS = melhorReferido;
+  }
+
+  // Outros campos: se o sobrevivente estiver em branco, preenche com
+  // o primeiro valor não-vazio encontrado entre os duplicados.
+  ["NOME", "PROFISSAO", "STATUS_COMERCIAL", "STATUS_COMPORTAMENTAL", "OBSERVACAO"].forEach(campo => {
+    if(String(sobrevivente[campo] || "").trim() !== "") return;
+    const comValor = outros.find(c => String(c[campo] || "").trim() !== "");
+    if(comValor) dadosAtualizados[campo] = comValor[campo];
+  });
+
+  return {
+    sobrevivente,
+    dadosAtualizados,
+    paraExcluir: outros
+  };
+}
+
+/* Mescla UM grupo de duplicados: grava a mudança no sobrevivente (se
+   houver) e apaga os outros — no banco e na memória. */
+async function mesclarGrupoDuplicados(grupo){
+  const { sobrevivente, dadosAtualizados, paraExcluir } = calcularMesclagemDeGrupo(grupo);
+
+  if(Object.keys(dadosAtualizados).length > 0){
+    await apiAtualizar(sobrevivente.aba, sobrevivente.linha, dadosAtualizados);
+    Object.assign(sobrevivente, dadosAtualizados);
+  }
+
+  for(const dup of paraExcluir){
+    await apiExcluir(dup.aba, dup.linha);
+  }
+
+  const idsExcluidos = new Set(paraExcluir.map(c => c.linha));
+  estado.contatos = estado.contatos.filter(c => !idsExcluidos.has(c.linha));
+}
+
+let mesclandoDuplicados = false;
+
+/* Varre TODOS os contatos carregados, agrupa por telefone e mescla
+   cada grupo de duplicados encontrado.
+   opcoes.silencioso: não avisa nada se não achar duplicado nenhum
+   (usado nas chamadas automáticas depois de importar).
+   opcoes.pularConfirmacao: não pede confirmação antes de mesclar
+   (usado nas chamadas automáticas). */
+async function mesclarTodosDuplicados(opcoes){
+  opcoes = opcoes || {};
+  if(mesclandoDuplicados) return;
+
+  const grupos = agruparContatosDuplicadosPorTelefone(estado.contatos);
+  if(grupos.length === 0){
+    if(!opcoes.silencioso) mostrarToast("Nenhum contato duplicado encontrado.");
+    return;
+  }
+
+  if(!opcoes.pularConfirmacao){
+    const totalParaExcluir = grupos.reduce((soma, g) => soma + (g.length - 1), 0);
+    const confirmou = confirm(
+      `Foram encontrados ${grupos.length} telefone${grupos.length === 1 ? "" : "s"} duplicado${grupos.length === 1 ? "" : "s"} ` +
+      `(${totalParaExcluir} registro${totalParaExcluir === 1 ? "" : "s"} a mais será${totalParaExcluir === 1 ? "" : "ão"} removido${totalParaExcluir === 1 ? "" : "s"}). ` +
+      `O nome de quem indicou (e a observação) de todos eles é preservado no contato que ficar. Confirma a mesclagem? Essa ação não pode ser desfeita.`
+    );
+    if(!confirmou) return;
+  }
+
+  mesclandoDuplicados = true;
+  let mesclados = 0;
+  let erros = 0;
+
+  for(const grupo of grupos){
+    try{
+      await mesclarGrupoDuplicados(grupo);
+      mesclados++;
+    }catch(err){
+      erros++;
+    }
+  }
+
+  mesclandoDuplicados = false;
+  salvarCacheLocal();
+
+  if(!opcoes.silencioso || mesclados > 0){
+    mostrarToast(`${mesclados} duplicado${mesclados === 1 ? "" : "s"} mesclado${mesclados === 1 ? "" : "s"}${erros > 0 ? `, ${erros} com erro` : ""}`);
+  }
+
+  renderListaEContagem();
+}
+
+function contatosFiltradosFinal(){
+  const termoBrutoTotal = estado.busca.trim();
+
+  if(termoBrutoTotal !== ""){
+    // Separa por " + " (com espaço dos dois lados) — assim um "+55" que
+    // faça parte de um telefone não é confundido com o separador.
+    const termos = termoBrutoTotal.split(/\s\+\s/).map(t => t.trim()).filter(t => t !== "");
+
     return contatosCombinados().filter(c => {
       const alvo = CAMPOS_BUSCA_TEXTO.map(chave => c[chave] || "").join(" ").toLowerCase();
-      if(alvo.includes(termoBusca)) return true;
+      const alvoSoDigitos = alvo.replace(/\D/g, "");
 
-      // Se o termo tem dígitos (telefone, por exemplo), compara também
-      // ignorando espaços, +, (), - e qualquer outra formatação — assim
-      // a busca encontra o contato independente de como o número foi
-      // digitado ou de como ele está salvo.
-      if(termoSoDigitos.length >= 4){
-        const alvoSoDigitos = alvo.replace(/\D/g, "");
-        if(alvoSoDigitos.includes(termoSoDigitos)) return true;
-      }
-      return false;
+      // Basta bater com QUALQUER UM dos termos digitados.
+      return termos.some(termoOriginal => {
+        const termoBusca = termoOriginal.toLowerCase();
+        if(alvo.includes(termoBusca)) return true;
+
+        // Se o termo tem dígitos (telefone, por exemplo), compara também
+        // ignorando espaços, +, (), - e qualquer outra formatação — assim
+        // a busca encontra o contato independente de como o número foi
+        // digitado ou de como ele está salvo.
+        const termoSoDigitos = termoOriginal.replace(/\D/g, "");
+        if(termoSoDigitos.length >= 4 && alvoSoDigitos.includes(termoSoDigitos)) return true;
+
+        return false;
+      });
     });
   }
 
@@ -1006,9 +1183,25 @@ async function iniciar(){
 
   // Sempre busca dados atualizados em paralelo (mesmo tendo cache),
   // pra nunca deixar o usuário travado num dado antigo por muito tempo.
-  carregarContatos();
+  carregarContatos().then(rodarLimpezaDuplicadosUmaVez);
   carregarOpcoes();
   carregarMensagensWhatsapp();
+}
+
+/* Roda a mesclagem de duplicados UMA ÚNICA VEZ, na primeira vez que o
+   app abrir depois dessa atualização — pra limpar os duplicados que já
+   existiam sem precisar de nenhum botão. Depois disso, a mesclagem só
+   acontece automaticamente quando um contato novo é criado/importado. */
+const CHAVE_DUPLICADOS_MIGRADOS = "duplicadosMigradosV1";
+
+async function rodarLimpezaDuplicadosUmaVez(){
+  try{
+    if(localStorage.getItem(CHAVE_DUPLICADOS_MIGRADOS)) return;
+  }catch(e){ return; }
+
+  await mesclarTodosDuplicados({ silencioso: true, pularConfirmacao: true });
+
+  try{ localStorage.setItem(CHAVE_DUPLICADOS_MIGRADOS, "1"); }catch(e){ /* segue mesmo assim */ }
 }
 
 async function carregarContatos(){
@@ -1598,6 +1791,26 @@ function campoDetalheLinha(rotulo, valor, carregando){
   return `<div class="detail-field"><div class="k">${rotulo}</div><div class="v ${v === "" ? "empty" : ""}">${v === "" ? "Não informado" : v}</div></div>`;
 }
 
+/* Renderiza "Indicado por" e "Observação do Indicado por" em pares
+   empilhados — o 1º indicado por seguido da observação dele, depois
+   o 2º e a observação dele, e assim por diante, quantos existirem.
+   Os dois campos no banco guardam uma linha por indicador, na mesma
+   ordem (linha 1 de um corresponde à linha 1 do outro). */
+function renderIndicadosEObservacoes(c){
+  const nomes = String(c.INDICADO_POR || "").split("\n").map(s => s.trim()).filter(s => s !== "");
+  const observacoes = String(c.OBSERVACAO_INDICADO || "").split("\n");
+
+  if(nomes.length === 0){
+    return campoDetalheLinha("Indicado por", "", false) + campoDetalheLinha("Observação do Indicado por", "", false);
+  }
+
+  return nomes.map((nome, i) => {
+    const sufixo = nomes.length > 1 ? ` ${i + 1}` : "";
+    return campoDetalheLinha("Indicado por" + sufixo, nome, false)
+      + campoDetalheLinha("Observação do Indicado por" + sufixo, (observacoes[i] || "").trim(), false);
+  }).join("");
+}
+
 function renderDuplicatasCard(ui){
   if(ui.carregandoDuplicatas){
     return `<div class="detail-field duplicata-field"><div class="v empty">Carregando duplicados...</div></div>`;
@@ -1620,7 +1833,7 @@ function cardExtraConteudo(c, ui){
 
   return `
     ${campoDetalheLinha("Observação do Contato", c.OBSERVACAO, false)}
-    ${campoDetalheLinha("Observação do Indicado por", c.OBSERVACAO_INDICADO, false)}
+    ${renderIndicadosEObservacoes(c)}
     ${renderDuplicatasCard(ui)}
     <div class="detail-grid">
       ${campoDetalheLinha("Referido", c.REFERIDOS, false)}
@@ -1665,7 +1878,7 @@ function cardInnerHtmlEdicao(c, ui){
           <button type="button" class="btn-microfone" data-campo-alvo="campoObservacao-${c.linha}" aria-label="Ditar por voz">${iconMicrofone()}</button>
         </div>
       </div>
-      <div class="detail-field"><div class="k">Indicado por</div><input type="text" data-campo="INDICADO_POR" value="${escapeAttr(d.INDICADO_POR)}"></div>
+      <div class="detail-field"><div class="k">Indicado por</div><textarea data-campo="INDICADO_POR" rows="2" style="width:100%;box-sizing:border-box;border:1px solid #DAD5C8;border-radius:8px;padding:6px 8px;font-size:13px;font-family:inherit;resize:vertical;">${escapeAttr(d.INDICADO_POR)}</textarea></div>
       <div class="detail-field">
         <div class="k">Observação do Indicado por</div>
         <div class="campo-com-microfone">
@@ -2184,7 +2397,7 @@ function abrirBusca(){
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
-      <p style="color:var(--ink-faint);font-size:11.5px;margin:8px 0 0;">Os resultados aparecem conforme você digita.</p>
+      <p style="color:var(--ink-faint);font-size:11.5px;margin:8px 0 0;">Os resultados aparecem conforme você digita. Pra buscar mais de uma coisa de uma vez, separe com " + " (espaço, mais, espaço) — ex: 99944-5403 + 8795-3568</p>
     </div>
   `;
 
@@ -2597,7 +2810,8 @@ async function confirmarImportacaoLote(){
   mostrarToast(`Importação concluída: ${sucesso} adicionado${sucesso === 1 ? "" : "s"}${erros > 0 ? `, ${erros} com erro` : ""}${excluidosDoGoogle > 0 ? ` (${excluidosDoGoogle} removido${excluidosDoGoogle === 1 ? "" : "s"} do Google Contatos)` : ""}`);
 
   fecharImportarLote();
-  carregarContatos();
+  await carregarContatos();
+  await mesclarTodosDuplicados({ silencioso: true, pularConfirmacao: true });
 }
 
 function renderTelaImportarLote(){
@@ -3166,7 +3380,7 @@ async function abrirModalExcluirOpcao(chaveApp, valor){
  * EXPORTAR CONTATOS EM PLANILHA (.csv)
  * ============================================================ */
 const COLUNAS_EXPORTACAO = [
-  { chave: "NOME", rotulo: "Nome", transformar: c => primeiroNomeDe(c.NOME) },
+  { chave: "NOME", rotulo: "Nome", transformar: c => capitalizarPrimeiraLetra(primeiroNomeDe(c.NOME)) },
   { chave: "TELEFONE", rotulo: "Telefone" },
   { chave: "INDICADO_POR", rotulo: "Indicado por" },
   { chave: "STATUS_COMERCIAL", rotulo: "Status Comercial" },
@@ -3192,11 +3406,23 @@ function escaparCampoCsv(valor){
   return texto;
 }
 
-function gerarEBaixarCsvDeContatos(lista, sufixoNomeArquivo){
-  if(!lista || lista.length === 0){
+function gerarEBaixarCsvDeContatos(listaOriginal, sufixoNomeArquivo){
+  if(!listaOriginal || listaOriginal.length === 0){
     mostrarToast("Nenhum contato pra exportar com esse filtro.");
     return;
   }
+
+  // Remove telefones duplicados da planilha exportada — mantém só o
+  // primeiro contato de cada número (a base de dados em si não é
+  // alterada, isso afeta só o arquivo baixado).
+  const telefonesJaVistos = new Set();
+  const lista = listaOriginal.filter(c => {
+    const digitos = String(c.TELEFONE || "").replace(/\D/g, "");
+    if(digitos === "") return true; // sem telefone, não dá pra comparar — mantém
+    if(telefonesJaVistos.has(digitos)) return false;
+    telefonesJaVistos.add(digitos);
+    return true;
+  });
 
   const cabecalho = COLUNAS_EXPORTACAO.map(c => c.rotulo).join(";");
   const linhasCsv = lista.map(c =>
@@ -3739,6 +3965,11 @@ async function salvarNovoContato(){
     fecharSheet();
     renderTudo();
     mostrarToast("Contato adicionado!");
+
+    // Se esse telefone já existia em outro contato, mescla os dois
+    // automaticamente, sem precisar de confirmação (o usuário já
+    // decidiu cadastrar esse contato agora mesmo).
+    mesclarTodosDuplicados({ silencioso: true, pularConfirmacao: true });
   }catch(err){
     estado.salvandoNovo = false;
     estado.erroNovo = "Não foi possível adicionar: " + err.message;
