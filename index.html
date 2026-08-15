@@ -48,7 +48,7 @@
      bloco único ao rolar a tela — evita a sobreposição bagunçada de
      ter vários elementos "sticky" separados competindo pela mesma
      posição, que fazia partes do conteúdo sumirem atrás de outras. */
-  .cabecalho-fixo{ position: sticky; top: 0; z-index: 20; background: var(--bg); }
+  .cabecalho-fixo{ position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 520px; z-index: 20; background: var(--bg); }
 
   .topbar{ background: var(--accent); color: #fff; padding: 16px 18px 14px; }
   .topbar-linha{ display: flex; align-items: center; justify-content: space-between; gap: 10px; }
@@ -58,11 +58,11 @@
   .card-linha-resumo{ display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--ink-faint); margin-top:2px; }
   .card-linha-resumo-k{ font-weight:600; flex-shrink:0; }
   .card-linha-resumo-v{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .status-comercial-inline, .status-comportamental-inline{
+  .status-comercial-inline, .status-comportamental-inline, .status-extra-inline{
     border:1px solid #DAD5C8; border-radius:8px; padding:3px 6px; font-size:12.5px;
     background:#fff; color:var(--ink); max-width:160px;
   }
-  .status-comercial-inline.salvando, .status-comportamental-inline.salvando{ opacity:.5; }
+  .status-comercial-inline.salvando, .status-comportamental-inline.salvando, .status-extra-inline.salvando{ opacity:.5; }
   .dia-semana-agenda{ font-size:12px; color:var(--ink-faint); margin-top:4px; font-weight:600; }
   .mensagem-whatsapp-box{ background:#F7F5EF; border:1px solid #E5E0D2; border-radius:12px; padding:12px; }
   .mensagem-whatsapp-titulo{ font-weight:600; font-size:13.5px; margin-bottom:4px; }
@@ -150,8 +150,8 @@
 
   .menu-topo-dot{ position:absolute; top:2px; right:2px; width:9px; height:9px; border-radius:50%; background:#E4453A; border:1.5px solid var(--accent); }
   .menu-topo-dropdown{
-    position:absolute; top:calc(100% + 8px); right:0; z-index:40; min-width:200px;
-    background:#fff; border-radius:var(--radius); box-shadow:0 8px 24px rgba(0,0,0,.18);
+    position:absolute; bottom:calc(100% + 8px); right:0; z-index:40; min-width:200px;
+    background:#fff; border-radius:var(--radius); box-shadow:0 -8px 24px rgba(0,0,0,.18);
     padding:6px; display:flex; flex-direction:column; gap:2px;
   }
   .menu-topo-item{
@@ -199,7 +199,7 @@
 
   .result-count{ padding: 8px 18px 4px; font-size: 12.5px; color: var(--ink-faint); font-weight: 500; }
 
-  .list{ padding: 6px 14px 40px; }
+  .list{ padding: 6px 14px 110px; }
   #cardsWrap{ display: flex; flex-direction: column; gap: 10px; }
   .card{ background: var(--surface); border-radius: var(--radius); padding: 10px 14px; box-shadow: var(--shadow); }
   .card-header-row{ display: flex; align-items: center; gap: 10px; }
@@ -404,6 +404,7 @@ const CAMPOS_FILTRO = [
   { chave: "REGIAO", rotulo: "Região" },
   { chave: "STATUS_COMERCIAL", rotulo: "Status Comercial" },
   { chave: "STATUS_COMPORTAMENTAL", rotulo: "Status do Contato" },
+  { chave: "STATUS_EXTRA", rotulo: "Status Extra" },
   { chave: "PROFISSAO", rotulo: "Profissão" }
 ];
 
@@ -411,6 +412,7 @@ const CAMPOS_FILTRO = [
 const CAMPOS_FILTRO_DATA = [
   { chave: "REGISTRO_STATUS_COMERCIAL", rotulo: "Data do Status Comercial" },
   { chave: "REGISTRO_STATUS_COMPORTAMENTAL", rotulo: "Data do Status do Contato" },
+  { chave: "REGISTRO_STATUS_EXTRA", rotulo: "Data do Status Extra" },
   { chave: "REGISTRO_TELEFONE", rotulo: "Data do Telefone" },
   { chave: "AGENDAMENTO", rotulo: "Data do Agendamento" }
 ];
@@ -428,7 +430,7 @@ const estado = {
   buscaAberta: false,
   filtros: {},
   filtrosData: {},
-  opcoes: { statusComercial: [""], statusComportamental: [""], referidos: [""], profissao: [""] },
+  opcoes: { statusComercial: [""], statusComportamental: [""], statusExtra: [""], referidos: [""], profissao: [""] },
   cardUI: {}, // linha -> { expandido, carregando, detalhe, editando, salvando, erroSalvar, agendamentoAberto, mostrarFormAgendamento, salvandoAgendamento, erroAgendamento, duplicatas }
   mensagensWhatsapp: [],
   salvandoNovo: false,
@@ -618,7 +620,7 @@ const MENSAGEM_WHATSAPP_PADRAO = "Oi {nome}, {periodo}! Aqui é o Drago da Wise 
 
 const TAGS_MENSAGEM_DISPONIVEIS = [
   { chave: "nome", rotulo: "{nome} — primeiro nome do contato" },
-  { chave: "indicado_por", rotulo: "{indicado_por} — primeiro nome de quem indicou" },
+  { chave: "indicado_por", rotulo: "{indicado_por} — nome completo de quem indicou (todos, se tiver mais de um)" },
   { chave: "periodo", rotulo: "{periodo} — Bom dia / Boa tarde / Boa noite" }
 ];
 
@@ -714,6 +716,29 @@ function primeiroNomeDe(textoCompleto){
   return String(textoCompleto || "").trim().split(" ")[0] || "";
 }
 
+/* Tira o telefone do final do texto de "Indicado por" (que guarda
+   nome + telefone juntos), deixando só o nome completo. */
+function nomeCompletoSemTelefone(texto){
+  return String(texto || "")
+    .replace(/\s*[+\d][\d\s()+-]*$/, "")
+    .trim();
+}
+
+/* Monta a lista de quem indicou pra usar na tag {indicado_por} — nome
+   completo de cada um (sem telefone). Se o campo tiver mais de um
+   indicador (contato que recebeu indicação de mais de uma pessoa,
+   depois de mesclar duplicados), junta todos no formato "A, B e C". */
+function indicadoPorParaTag(indicadoPorBruto){
+  const nomes = String(indicadoPorBruto || "")
+    .split("\n")
+    .map(nomeCompletoSemTelefone)
+    .filter(n => n !== "");
+
+  if(nomes.length === 0) return "";
+  if(nomes.length === 1) return nomes[0];
+  return nomes.slice(0, -1).join(", ") + " e " + nomes[nomes.length - 1];
+}
+
 function capitalizarPrimeiraLetra(texto){
   const t = String(texto || "").toLowerCase().trim();
   return t ? t.charAt(0).toUpperCase() + t.slice(1) : "";
@@ -744,7 +769,7 @@ function linkWhatsapp(telefone, nome, indicadoPor, fusoRelativoContato){
   const template = obterMensagemWhatsappTemplate();
   const mensagem = template
     .replace(/\{nome\}/gi, primeiroNomeDe(nome))
-    .replace(/\{indicado_por\}/gi, primeiroNomeDe(indicadoPor))
+    .replace(/\{indicado_por\}/gi, indicadoPorParaTag(indicadoPor))
     .replace(/\{periodo\}/gi, periodoDoDiaAtual(fusoRelativoContato));
 
   return "https://wa.me/" + digitos + "?text=" + encodeURIComponent(mensagem);
@@ -844,7 +869,7 @@ function contatosCombinados(){
 /* Campos usados pela busca livre — cobre tudo que já vem carregado
    na lista (nome, telefone, indicação, status, fuso/país/região,
    profissão, e as datas de registro) */
-const CAMPOS_BUSCA_TEXTO = ["NOME", "TELEFONE", "INDICADO_POR", "STATUS_COMERCIAL", "STATUS_COMPORTAMENTAL", "REFERIDOS", "FUSO", "PAIS", "REGIAO", "PROFISSAO", "REGISTRO_TELEFONE", "REGISTRO_STATUS_COMERCIAL", "REGISTRO_STATUS_COMPORTAMENTAL"];
+const CAMPOS_BUSCA_TEXTO = ["NOME", "TELEFONE", "INDICADO_POR", "STATUS_COMERCIAL", "STATUS_COMPORTAMENTAL", "STATUS_EXTRA", "REFERIDOS", "FUSO", "PAIS", "REGIAO", "PROFISSAO", "REGISTRO_TELEFONE", "REGISTRO_STATUS_COMERCIAL", "REGISTRO_STATUS_COMPORTAMENTAL", "REGISTRO_STATUS_EXTRA"];
 
 function passaNosFiltros(c, chaveExcluida){
   for(const campo of CAMPOS_FILTRO){
@@ -977,7 +1002,7 @@ function calcularMesclagemDeGrupo(grupo){
 
   // Outros campos: se o sobrevivente estiver em branco, preenche com
   // o primeiro valor não-vazio encontrado entre os duplicados.
-  ["NOME", "PROFISSAO", "STATUS_COMERCIAL", "STATUS_COMPORTAMENTAL", "OBSERVACAO"].forEach(campo => {
+  ["NOME", "PROFISSAO", "STATUS_COMERCIAL", "STATUS_COMPORTAMENTAL", "STATUS_EXTRA", "OBSERVACAO"].forEach(campo => {
     if(String(sobrevivente[campo] || "").trim() !== "") return;
     const comValor = outros.find(c => String(c[campo] || "").trim() !== "");
     if(comValor) dadosAtualizados[campo] = comValor[campo];
@@ -1068,12 +1093,17 @@ function contatosFiltradosFinal(){
     const termos = termoBrutoTotal.split(/\s\+\s/).map(t => t.trim()).filter(t => t !== "");
 
     return contatosCombinados().filter(c => {
-      const alvo = CAMPOS_BUSCA_TEXTO.map(chave => c[chave] || "").join(" ").toLowerCase();
+      const alvoBruto = CAMPOS_BUSCA_TEXTO.map(chave => c[chave] || "").join(" ").toLowerCase();
+      // Normaliza qualquer tipo de espaço (inclusive espaço "especial" que
+      // alguns teclados de celular inserem) pro espaço comum — assim a
+      // busca com espaço/traço bate certinho com o que está salvo.
+      const alvo = alvoBruto.replace(/[\s\u00A0\u202F]+/g, " ");
       const alvoSoDigitos = alvo.replace(/\D/g, "");
 
       // Basta bater com QUALQUER UM dos termos digitados.
       return termos.some(termoOriginal => {
-        const termoBusca = termoOriginal.toLowerCase();
+        const termoBusca = termoOriginal.toLowerCase().replace(/[\s\u00A0\u202F]+/g, " ");
+        // Busca exatamente como foi digitado (espaços, traços, + incluídos)
         if(alvo.includes(termoBusca)) return true;
 
         // Se o termo tem dígitos (telefone, por exemplo), compara também
@@ -1253,6 +1283,9 @@ function renderTudo(){
   const carregando = algumCarregando();
 
   app.innerHTML = `
+    <div class="result-count" style="display:none;"></div>
+    <div class="list" id="listaContatos"></div>
+
     <div class="cabecalho-fixo">
       <div class="topbar">
         <div class="topbar-linha">
@@ -1260,45 +1293,40 @@ function renderTudo(){
             ${LOGO_SVG}
             <h1>MATRÍCULAS</h1>
           </div>
-          <div style="position:relative;">
-            <button class="btn-add" id="btnMenuTopo" aria-label="Menu">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
-              ${(algumFiltroAtivo() || estado.busca.trim() !== "") ? `<span class="menu-topo-dot"></span>` : ""}
-            </button>
-            <div class="menu-topo-dropdown" id="menuTopoDropdown" style="display:${estado.mostrarMenuTopo ? "block" : "none"};">
-              <button class="menu-topo-item" id="menuItemManutencao">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.04 1.56V21a2 2 0 0 1-4 0v-.09A1.7 1.7 0 0 0 8.96 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.04H3a2 2 0 0 1 0-4h.09A1.7 1.7 0 0 0 4.6 8.96a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1.04-1.56V3a2 2 0 0 1 4 0v.09a1.7 1.7 0 0 0 1.04 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.56 1.04H21a2 2 0 0 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1.04z"/></svg>
-                Configurações
+          <div style="display:flex; gap:8px; align-items:center;">
+            <div style="position:relative;">
+              <button class="btn-add" id="btnMenuTopo" aria-label="Menu">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
               </button>
-              <button class="menu-topo-item" id="menuItemAgenda">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                Agenda
-              </button>
-              <button class="menu-topo-item" id="menuItemRelatorio">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="20" x2="6" y2="12"/><line x1="12" y1="20" x2="12" y2="6"/><line x1="18" y1="20" x2="18" y2="15"/></svg>
-                Relatório
-              </button>
-              <button class="menu-topo-item" id="menuItemContatos">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                Contatos
-              </button>
-              <button class="menu-topo-item ${estado.busca.trim() !== "" ? "ativo" : ""}" id="menuItemBuscar">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                Buscar
-              </button>
-              <button class="menu-topo-item ${algumFiltroAtivo() ? "ativo" : ""}" id="menuItemFiltro">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="4,4 20,4 14,12.5 14,19 10,21 10,12.5"/></svg>
-                Filtro
-              </button>
+              <div class="menu-topo-dropdown" id="menuTopoDropdown" style="display:${estado.mostrarMenuTopo ? "block" : "none"};">
+                <button class="menu-topo-item" id="menuItemManutencao">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.04 1.56V21a2 2 0 0 1-4 0v-.09A1.7 1.7 0 0 0 8.96 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.04H3a2 2 0 0 1 0-4h.09A1.7 1.7 0 0 0 4.6 8.96a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1.04-1.56V3a2 2 0 0 1 4 0v.09a1.7 1.7 0 0 0 1.04 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.56 1.04H21a2 2 0 0 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1.04z"/></svg>
+                  Configurações
+                </button>
+                <button class="menu-topo-item" id="menuItemAgenda">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                  Agenda
+                </button>
+                <button class="menu-topo-item" id="menuItemRelatorio">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="20" x2="6" y2="12"/><line x1="12" y1="20" x2="12" y2="6"/><line x1="18" y1="20" x2="18" y2="15"/></svg>
+                  Relatório
+                </button>
+                <button class="menu-topo-item" id="menuItemContatos">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                  Contatos
+                </button>
+              </div>
             </div>
+            <button class="btn-add" id="btnBuscarBarra" aria-label="Buscar" style="${estado.busca.trim() !== "" ? "background:rgba(255,255,255,.32);" : ""}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </button>
+            <button class="btn-add" id="btnFiltrarBarra" aria-label="Filtro" style="${algumFiltroAtivo() ? "background:rgba(255,255,255,.32);" : ""}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="4,4 20,4 14,12.5 14,19 10,21 10,12.5"/></svg>
+            </button>
           </div>
         </div>
       </div>
-
-      <div class="result-count" style="display:none;"></div>
     </div>
-
-    <div class="list" id="listaContatos"></div>
 
     <div class="sheet-backdrop" id="backdrop"></div>
     <div class="sheet" id="sheet"></div>
@@ -1336,14 +1364,9 @@ function renderTudo(){
     fecharDropdownTopoRapido();
     abrirImportarLote();
   });
-  document.getElementById("menuItemFiltro").addEventListener("click", () => {
-    fecharDropdownTopoRapido();
-    abrirTelaFiltro();
-  });
-  document.getElementById("menuItemBuscar").addEventListener("click", () => {
-    fecharDropdownTopoRapido();
-    abrirBusca();
-  });
+
+  document.getElementById("btnFiltrarBarra").addEventListener("click", abrirTelaFiltro);
+  document.getElementById("btnBuscarBarra").addEventListener("click", abrirBusca);
 
   document.getElementById("backdrop").addEventListener("click", fecharSheet);
 
@@ -1433,10 +1456,11 @@ function renderTelaFiltro(){
 
       <div class="filter-grid">${chipBotao("REFERIDOS")}${chipBotao("FUSO")}${chipBotao("PAIS")}</div>
       <div class="filter-grid">${chipBotao("REGIAO")}${chipBotao("STATUS_COMERCIAL")}${chipBotao("STATUS_COMPORTAMENTAL")}</div>
-      <div class="filter-grid">${chipBotao("PROFISSAO")}${chipBotao("REGISTRO_STATUS_COMERCIAL")}${chipBotao("REGISTRO_STATUS_COMPORTAMENTAL")}</div>
+      <div class="filter-grid">${chipBotao("STATUS_EXTRA")}${chipBotao("PROFISSAO")}${chipBotao("REGISTRO_STATUS_COMERCIAL")}</div>
+      <div class="filter-grid">${chipBotao("REGISTRO_STATUS_COMPORTAMENTAL")}${chipBotao("REGISTRO_STATUS_EXTRA")}${chipBotao("REGISTRO_TELEFONE")}</div>
       <div class="filter-grid">
-        ${chipBotao("REGISTRO_TELEFONE")}${chipBotao("AGENDAMENTO")}
-        <div style="display:flex;gap:6px;align-items:center;">
+        ${chipBotao("AGENDAMENTO")}
+        <div style="display:flex;gap:6px;align-items:center;grid-column: span 2;">
           <button type="button" class="chip grid ${temFiltroPraLimpar ? "active" : ""}" id="btnLimparFiltro" style="flex:1;" ${temFiltroPraLimpar ? "" : "disabled"}>Limpar</button>
           <button type="button" class="btn-icon-claro" id="btnBaixarFiltrado" aria-label="Baixar lista filtrada em Excel/CSV" title="Baixar lista filtrada">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -1580,9 +1604,13 @@ function agendarRemocaoCardComFiltro(linha){
   }, 60000);
 }
 
+const MAPA_SELECT_INLINE_STATUS = [
+  { classe: "status-comercial-inline", campoDb: "STATUS_COMERCIAL", campoData: "REGISTRO_STATUS_COMERCIAL", rotulo: "Status Comercial" },
+  { classe: "status-comportamental-inline", campoDb: "STATUS_COMPORTAMENTAL", campoData: "REGISTRO_STATUS_COMPORTAMENTAL", rotulo: "Status do Contato" },
+  { classe: "status-extra-inline", campoDb: "STATUS_EXTRA", campoData: "REGISTRO_STATUS_EXTRA", rotulo: "Status Extra" }
+];
+
 async function handleMudancaNaLista(e){
-  const selectComercial = e.target.closest(".status-comercial-inline");
-  const selectComportamental = e.target.closest(".status-comportamental-inline");
   const inputAgenda = e.target.closest("[data-agenda-input]");
 
   if(inputAgenda){
@@ -1592,11 +1620,15 @@ async function handleMudancaNaLista(e){
     return;
   }
 
-  const select = selectComercial || selectComportamental;
+  let info = null;
+  let select = null;
+  for(const item of MAPA_SELECT_INLINE_STATUS){
+    const el = e.target.closest("." + item.classe);
+    if(el){ select = el; info = item; break; }
+  }
   if(!select) return;
 
-  const campoDb = selectComercial ? "STATUS_COMERCIAL" : "STATUS_COMPORTAMENTAL";
-  const campoData = selectComercial ? "REGISTRO_STATUS_COMERCIAL" : "REGISTRO_STATUS_COMPORTAMENTAL";
+  const ehStatusComercial = info.campoDb === "STATUS_COMERCIAL";
   const linha = Number(select.dataset.linha);
   const aba = select.dataset.aba;
   const novoValor = select.value;
@@ -1605,19 +1637,19 @@ async function handleMudancaNaLista(e){
   select.disabled = true;
 
   try{
-    await apiAtualizar(aba, linha, { [campoDb]: novoValor });
+    await apiAtualizar(aba, linha, { [info.campoDb]: novoValor });
 
     const c = estado.contatos.find(x => x.linha === linha);
     if(c){
-      c[campoDb] = novoValor;
-      c[campoData] = hojeFormatadoBr();
+      c[info.campoDb] = novoValor;
+      c[info.campoData] = hojeFormatadoBr();
     }
 
-    mostrarToast((selectComercial ? "Status Comercial" : "Status do Contato") + " salvo");
+    mostrarToast(info.rotulo + " salvo");
 
     // Se mudou pra AGENDADO no Status Comercial, já abre a tela de
     // agendamento pra escolher data e hora, sem precisar de outro toque.
-    if(selectComercial && novoValor === "AGENDADO"){
+    if(ehStatusComercial && novoValor === "AGENDADO"){
       const ui = obterCardUI(linha);
       ui.expandido = true;
       ui.agendamentoAberto = true;
@@ -1776,6 +1808,12 @@ function cardInnerHtml(c){
         ${(estado.opcoes.statusComportamental || [""]).map(o => `<option value="${escapeAttr(o)}" ${o === (c.STATUS_COMPORTAMENTAL || "") ? "selected" : ""}>${o === "" ? "(em branco)" : o}</option>`).join("")}
       </select>
     </div>
+    <div class="card-linha-resumo card-status-inline-wrap">
+      <span class="card-linha-resumo-k">Status Extra:</span>
+      <select class="status-extra-inline" data-linha="${c.linha}" data-aba="${c.aba}">
+        ${(estado.opcoes.statusExtra || [""]).map(o => `<option value="${escapeAttr(o)}" ${o === (c.STATUS_EXTRA || "") ? "selected" : ""}>${o === "" ? "(em branco)" : o}</option>`).join("")}
+      </select>
+    </div>
     ${badgesFiltroAtivo(c)}
     <div class="card-extra" id="cardExtra-${c.linha}" style="display:${ui.expandido ? "block" : "none"};">
       ${ui.expandido ? cardExtraConteudo(c, ui) : ""}
@@ -1846,6 +1884,10 @@ function cardExtraConteudo(c, ui){
       ${campoDetalheLinha("Profissão", c.PROFISSAO, false)}
     </div>
     <div class="detail-grid">
+      ${campoDetalheLinha("Status Extra", c.STATUS_EXTRA, false)}
+      ${campoDetalheLinha("Data do Status Extra", c.REGISTRO_STATUS_EXTRA, false)}
+    </div>
+    <div class="detail-grid">
       ${campoDetalheLinha("Data do Status Comercial", c.REGISTRO_STATUS_COMERCIAL, false)}
       ${campoDetalheLinha("Data do Status do Contato", c.REGISTRO_STATUS_COMPORTAMENTAL, false)}
     </div>
@@ -1894,6 +1936,9 @@ function cardInnerHtmlEdicao(c, ui){
       </div>
       <div class="detail-field"><div class="k">Status do Contato</div>
         <select data-campo="STATUS_COMPORTAMENTAL">${(estado.opcoes.statusComportamental || [""]).map(o => `<option value="${o}" ${o === (c.STATUS_COMPORTAMENTAL || "") ? "selected" : ""}>${o === "" ? "(em branco)" : o}</option>`).join("")}</select>
+      </div>
+      <div class="detail-field"><div class="k">Status Extra</div>
+        <select data-campo="STATUS_EXTRA">${(estado.opcoes.statusExtra || [""]).map(o => `<option value="${o}" ${o === (c.STATUS_EXTRA || "") ? "selected" : ""}>${o === "" ? "(em branco)" : o}</option>`).join("")}</select>
       </div>
       <div class="detail-field"><div class="k">Profissão</div>
         <input type="text" data-campo="PROFISSAO" list="listaProfissoes-${c.linha}" value="${escapeAttr(c.PROFISSAO)}" placeholder="Digite ou escolha uma opção existente">
@@ -3214,7 +3259,10 @@ const CAMPOS_COM_SUBSTITUICAO_EM_MASSA = ["referidos", "statusComercial", "statu
 
 function renderGerenciarListaCampo(chaveApp){
   const opcoes = (estado.opcoes[chaveApp] || []).filter(o => o !== "");
-  const permiteSubstituicao = CAMPOS_COM_SUBSTITUICAO_EM_MASSA.includes(chaveApp) && opcoes.length >= 2;
+  const permiteSubstituicao = CAMPOS_COM_SUBSTITUICAO_EM_MASSA.includes(chaveApp) && opcoes.length >= 1;
+  // "(em branco)" entra como uma opção de verdade nos dois selects, pra
+  // dar pra trocar de/pra contatos sem nada preenchido nesse campo.
+  const opcoesComBranco = ["", ...opcoes];
 
   return `
     <div class="gerenciar-lista-campo">
@@ -3236,15 +3284,15 @@ function renderGerenciarListaCampo(chaveApp){
         <div class="substituir-lote-box">
           <div class="substituir-lote-titulo">Substituir em massa</div>
           <p style="color:var(--ink-faint);font-size:11px;margin:0 0 6px;">
-            Troca de uma vez, em todos os contatos, quem estiver com a opção da esquerda pra opção da direita.
+            Troca de uma vez, em todos os contatos, quem estiver com a opção da esquerda pra opção da direita. Inclui "(em branco)" — dá pra preencher quem está sem nada, ou esvaziar quem tem uma opção.
           </p>
           <div class="substituir-lote-selects">
             <select id="substituirDe-${chaveApp}">
-              ${opcoes.map(o => `<option value="${escapeAttr(o)}">${escapeAttr(o)}</option>`).join("")}
+              ${opcoesComBranco.map(o => `<option value="${escapeAttr(o)}">${o === "" ? "(em branco)" : escapeAttr(o)}</option>`).join("")}
             </select>
             <span class="substituir-lote-seta">→</span>
             <select id="substituirPara-${chaveApp}">
-              ${opcoes.map((o, i) => `<option value="${escapeAttr(o)}" ${i === 1 ? "selected" : ""}>${escapeAttr(o)}</option>`).join("")}
+              ${opcoesComBranco.map((o, i) => `<option value="${escapeAttr(o)}" ${i === 1 ? "selected" : ""}>${o === "" ? "(em branco)" : escapeAttr(o)}</option>`).join("")}
             </select>
           </div>
           <button type="button" class="btn ghost" id="btnSubstituir-${chaveApp}" style="width:100%;margin-top:8px;">Substituir</button>
