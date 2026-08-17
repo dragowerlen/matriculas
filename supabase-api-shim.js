@@ -32,6 +32,8 @@ const MAPA_CAMPOS = {
   REGISTRO_STATUS_COMERCIAL: "data_status_comercial",
   REGISTRO_TELEFONE: "data_telefone",
   REGISTRO_STATUS_COMPORTAMENTAL: "data_status_contato",
+  STATUS_EXTRA: "status_extra",
+  REGISTRO_STATUS_EXTRA: "data_status_extra",
   LINK_WHATSAPP: "link_whatsapp",
   AGENDAMENTO: "agendamento",
   ID_EVENTO_AGENDA: "id_evento"
@@ -73,7 +75,7 @@ function linhaSupabaseParaContatoApp(linha){
     const coluna = MAPA_CAMPOS[chaveApp];
     let valor = linha[coluna];
     if(valor === null || valor === undefined) valor = "";
-    if(chaveApp === "REGISTRO_STATUS_COMERCIAL" || chaveApp === "REGISTRO_TELEFONE" || chaveApp === "REGISTRO_STATUS_COMPORTAMENTAL"){
+    if(chaveApp === "REGISTRO_STATUS_COMERCIAL" || chaveApp === "REGISTRO_TELEFONE" || chaveApp === "REGISTRO_STATUS_COMPORTAMENTAL" || chaveApp === "REGISTRO_STATUS_EXTRA"){
       valor = isoParaBrData(valor);
     }
     if(chaveApp === "AGENDAMENTO"){
@@ -95,7 +97,7 @@ function dadosAppParaSupabase(dados){
     const coluna = campoApp2Coluna(chaveApp);
     if(!coluna) return;
     let valor = dados[chaveApp];
-    if((chaveApp === "REGISTRO_STATUS_COMERCIAL" || chaveApp === "REGISTRO_TELEFONE" || chaveApp === "REGISTRO_STATUS_COMPORTAMENTAL") && valor){
+    if((chaveApp === "REGISTRO_STATUS_COMERCIAL" || chaveApp === "REGISTRO_TELEFONE" || chaveApp === "REGISTRO_STATUS_COMPORTAMENTAL" || chaveApp === "REGISTRO_STATUS_EXTRA") && valor){
       valor = brDataParaIso(valor);
     }
     saida[coluna] = valor === "" ? null : valor;
@@ -139,6 +141,7 @@ async function apiListar(aba){
 const MAPA_CAMPO_OPCOES = {
   statusComercial: "status_comercial",
   statusComportamental: "status_contato",
+  statusExtra: "status_extra",
   profissao: "profissao",
   referidos: "referido"
 };
@@ -195,11 +198,12 @@ async function apiContarUsoOpcao(chaveApp, valor){
   const campo = MAPA_CAMPO_OPCOES[chaveApp];
   if(!campo) throw new Error("Campo desconhecido: " + chaveApp);
 
-  const { count, error } = await supabaseClient
-    .from("contatos")
-    .select("id", { count: "exact", head: true })
-    .eq(campo, valor);
+  let query = supabaseClient.from("contatos").select("id", { count: "exact", head: true });
+  query = (valor === "")
+    ? query.or(`${campo}.eq.,${campo}.is.null`) // "em branco" cobre tanto '' quanto NULL
+    : query.eq(campo, valor);
 
+  const { count, error } = await query;
   if(error) throw new Error(error.message);
   return count || 0;
 }
@@ -304,11 +308,12 @@ async function apiSubstituirValorEmMassa(chaveApp, valorAntigo, valorNovo){
   const campo = MAPA_CAMPO_OPCOES[chaveApp];
   if(!campo) throw new Error("Campo desconhecido: " + chaveApp);
 
-  const { error } = await supabaseClient
-    .from("contatos")
-    .update({ [campo]: valorNovo })
-    .eq(campo, valorAntigo);
+  let query = supabaseClient.from("contatos").update({ [campo]: valorNovo });
+  query = (valorAntigo === "")
+    ? query.or(`${campo}.eq.,${campo}.is.null`)
+    : query.eq(campo, valorAntigo);
 
+  const { error } = await query;
   if(error) throw new Error(error.message);
   return { sucesso: true };
 }
@@ -376,6 +381,9 @@ async function apiAtualizar(aba, linha, dados){
   if(dados.hasOwnProperty("STATUS_COMPORTAMENTAL")){
     camposParaSalvar.REGISTRO_STATUS_COMPORTAMENTAL = hojeBr();
   }
+  if(dados.hasOwnProperty("STATUS_EXTRA")){
+    camposParaSalvar.REGISTRO_STATUS_EXTRA = hojeBr();
+  }
 
   const colunasSupabase = dadosAppParaSupabase(camposParaSalvar);
 
@@ -398,7 +406,7 @@ async function apiAtualizar(aba, linha, dados){
  * o Apps Script fazia com garantirListaCompleta().
  */
 async function sincronizarOpcoesNovas(dados){
-  const camposDeLista = { PROFISSAO: "profissao", REFERIDOS: "referidos", STATUS_COMERCIAL: "statusComercial", STATUS_COMPORTAMENTAL: "statusComportamental" };
+  const camposDeLista = { PROFISSAO: "profissao", REFERIDOS: "referidos", STATUS_COMERCIAL: "statusComercial", STATUS_COMPORTAMENTAL: "statusComportamental", STATUS_EXTRA: "statusExtra" };
   for(const chaveApp of Object.keys(camposDeLista)){
     if(!dados.hasOwnProperty(chaveApp)) continue;
     const valor = String(dados[chaveApp] || "").trim();
@@ -433,6 +441,7 @@ async function apiCriar(aba, dados){
 
   if(dados.STATUS_COMERCIAL) camposParaSalvar.REGISTRO_STATUS_COMERCIAL = hojeBr();
   if(dados.STATUS_COMPORTAMENTAL) camposParaSalvar.REGISTRO_STATUS_COMPORTAMENTAL = hojeBr();
+  if(dados.STATUS_EXTRA) camposParaSalvar.REGISTRO_STATUS_EXTRA = hojeBr();
 
   const colunasSupabase = dadosAppParaSupabase(camposParaSalvar);
 
