@@ -1610,6 +1610,14 @@ const MAPA_SELECT_INLINE_STATUS = [
   { classe: "status-extra-inline", campoDb: "STATUS_EXTRA", campoData: "REGISTRO_STATUS_EXTRA", rotulo: "Status Extra" }
 ];
 
+/* Combinações de campo+valor que abrem a tela de agendamento
+   automaticamente ao serem escolhidas (igual "AGENDADO" já fazia no
+   Status Comercial). */
+const GATILHOS_ABERTURA_AGENDAMENTO = [
+  { campoDb: "STATUS_COMERCIAL", valor: "AGENDADO" },
+  { campoDb: "STATUS_COMERCIAL", valor: "Follow Up" }
+];
+
 async function handleMudancaNaLista(e){
   const inputAgenda = e.target.closest("[data-agenda-input]");
 
@@ -1628,7 +1636,6 @@ async function handleMudancaNaLista(e){
   }
   if(!select) return;
 
-  const ehStatusComercial = info.campoDb === "STATUS_COMERCIAL";
   const linha = Number(select.dataset.linha);
   const aba = select.dataset.aba;
   const novoValor = select.value;
@@ -1647,9 +1654,11 @@ async function handleMudancaNaLista(e){
 
     mostrarToast(info.rotulo + " salvo");
 
-    // Se mudou pra AGENDADO no Status Comercial, já abre a tela de
-    // agendamento pra escolher data e hora, sem precisar de outro toque.
-    if(ehStatusComercial && novoValor === "AGENDADO"){
+    // Se o campo+valor escolhido é um dos gatilhos de agendamento
+    // (Status Comercial = AGENDADO, Status do Contato = Quer futuramente...),
+    // já abre a tela de agendamento pra escolher data e hora na hora.
+    const gatilho = GATILHOS_ABERTURA_AGENDAMENTO.some(g => g.campoDb === info.campoDb && g.valor === novoValor);
+    if(gatilho){
       const ui = obterCardUI(linha);
       ui.expandido = true;
       ui.agendamentoAberto = true;
@@ -3173,7 +3182,7 @@ function renderTelaManutencao(){
         <p style="color:var(--ink-faint);font-size:12px;margin:0 0 10px;">
           Adicione ou remova as opções de cada lista suspensa. Ao remover uma opção que já está em uso, você escolhe pra qual outra opção transferir os contatos (ou deixar em branco).
         </p>
-        ${["referidos", "statusComercial", "statusComportamental", "profissao"].map(renderGerenciarListaCampo).join("")}
+        ${["referidos", "statusComercial", "statusComportamental", "statusExtra", "profissao"].map(renderGerenciarListaCampo).join("")}
       </div>
     </div>
   `;
@@ -3221,7 +3230,7 @@ function renderTelaManutencao(){
     });
   });
 
-  ["referidos", "statusComercial", "statusComportamental", "profissao"].forEach(chaveApp => {
+  ["referidos", "statusComercial", "statusComportamental", "statusExtra", "profissao"].forEach(chaveApp => {
     const botaoAdd = document.getElementById("addOpcao-" + chaveApp);
     const input = document.getElementById("inputOpcao-" + chaveApp);
     if(botaoAdd && input){
@@ -3245,17 +3254,19 @@ const ROTULO_CAMPO_OPCOES = {
   referidos: "REFERIDO",
   statusComercial: "STATUS COMERCIAL",
   statusComportamental: "STATUS DO CONTATO",
+  statusExtra: "STATUS EXTRA",
   profissao: "PROFISSÃO"
 };
 
 const CHAVE_APP_CONTATO_POR_OPCAO = {
   statusComercial: "STATUS_COMERCIAL",
   statusComportamental: "STATUS_COMPORTAMENTAL",
+  statusExtra: "STATUS_EXTRA",
   profissao: "PROFISSAO",
   referidos: "REFERIDOS"
 };
 
-const CAMPOS_COM_SUBSTITUICAO_EM_MASSA = ["referidos", "statusComercial", "statusComportamental", "profissao"];
+const CAMPOS_COM_SUBSTITUICAO_EM_MASSA = ["referidos", "statusComercial", "statusComportamental", "statusExtra", "profissao"];
 
 function renderGerenciarListaCampo(chaveApp){
   const opcoes = (estado.opcoes[chaveApp] || []).filter(o => o !== "");
