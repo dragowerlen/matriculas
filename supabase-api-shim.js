@@ -484,16 +484,18 @@ async function apiExcluir(aba, linha){
  * normalmente, só não aparece automaticamente na sua Agenda do
  * Google.
  * ============================================================ */
-async function apiAgendar(aba, linha, dataHora){
+async function apiAgendar(aba, linha, dataHora, manterStatusAtual){
   const dataFormatada = isoParaBrDataHora(dataHora);
+
+  const camposParaSalvar = { agendamento: new Date(dataHora).toISOString() };
+  if(!manterStatusAtual){
+    camposParaSalvar.status_comercial = "AGENDADO";
+    camposParaSalvar.data_status_comercial = hojeBrIso();
+  }
 
   const { error } = await supabaseClient
     .from("contatos")
-    .update({
-      agendamento: new Date(dataHora).toISOString(),
-      status_comercial: "AGENDADO",
-      data_status_comercial: hojeBrIso()
-    })
+    .update(camposParaSalvar)
     .eq("id", linha);
 
   if(error) throw new Error(error.message);
