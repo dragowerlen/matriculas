@@ -56,6 +56,12 @@
   .topbar-logo{ width: 56px; height: 56px; flex-shrink: 0; }
   .topbar h1{ font-size: 19px; font-weight: 600; color: #fff; }
   .card-linha-resumo{ display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--ink-faint); margin-top:2px; }
+  .btn-agendar-manual{
+    flex-shrink:0; width:26px; height:26px; border-radius:50%; border:1px solid #DAD5C8;
+    background:#fff; color:var(--ink-soft); display:flex; align-items:center; justify-content:center;
+  }
+  .btn-agendar-manual svg{ width:14px; height:14px; }
+  .btn-agendar-manual:active{ background:var(--bg); }
   .card-linha-resumo-k{ font-weight:600; flex-shrink:0; }
   .card-linha-resumo-v{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .status-comercial-inline, .status-comportamental-inline, .status-extra-inline{
@@ -1615,8 +1621,7 @@ const MAPA_SELECT_INLINE_STATUS = [
    automaticamente ao serem escolhidas (igual "AGENDADO" já fazia no
    Status Comercial). */
 const GATILHOS_ABERTURA_AGENDAMENTO = [
-  { campoDb: "STATUS_COMERCIAL", valor: "AGENDADO" },
-  { campoDb: "STATUS_COMERCIAL", valor: "Follow Up" }
+  { campoDb: "STATUS_COMERCIAL", valor: "AGENDADO" }
 ];
 
 async function handleMudancaNaLista(e){
@@ -1713,6 +1718,8 @@ function handleCliqueNaLista(e){
   if(e.target.closest("[data-acao='cancelar-form-agendamento']")){ cancelarFormAgendamentoCard(linha); return; }
   if(e.target.closest("[data-acao='confirmar-agendamento']")){ confirmarAgendamentoCard(aba, linha); return; }
   if(e.target.closest("[data-acao='cancelar-agendamento']")){ cancelarAgendamentoCard(aba, linha); return; }
+
+  if(e.target.closest(".btn-agendar-manual")){ abrirAgendamentoDireto(linha); return; }
 
   const btnMicrofone = e.target.closest(".btn-microfone");
   if(btnMicrofone){ alternarDitadoPorVoz(btnMicrofone); return; }
@@ -1813,6 +1820,9 @@ function cardInnerHtml(c){
       <select class="status-comercial-inline" data-linha="${c.linha}" data-aba="${c.aba}">
         ${(estado.opcoes.statusComercial || [""]).map(o => `<option value="${escapeAttr(o)}" ${o === (c.STATUS_COMERCIAL || "") ? "selected" : ""}>${o === "" ? "(em branco)" : o}</option>`).join("")}
       </select>
+      <button type="button" class="btn-agendar-manual" data-linha="${c.linha}" aria-label="Agendar" title="Agendar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      </button>
     </div>
     <div class="card-linha-resumo card-status-inline-wrap">
       <span class="card-linha-resumo-k">Status do Contato:</span>
@@ -1905,7 +1915,11 @@ function cardExtraConteudo(c, ui){
     </div>
     <div class="detail-grid">
       ${campoDetalheLinha("Data do Telefone", c.REGISTRO_TELEFONE, false)}
-      ${campoDetalheLinha("Data do Agendamento", c.AGENDAMENTO ? c.AGENDAMENTO + " (" + calcularDiaSemanaTexto(brDataHoraParaInputValue(c.AGENDAMENTO)) + ")" : "", false)}
+      ${campoDetalheLinha(
+        String(c.STATUS_COMERCIAL || "").trim().toUpperCase() === "FOLLOW UP" ? "Data do Follow Up" : "Data do Agendamento",
+        c.AGENDAMENTO ? c.AGENDAMENTO + " (" + calcularDiaSemanaTexto(brDataHoraParaInputValue(c.AGENDAMENTO)) + ")" : "",
+        false
+      )}
     </div>
     <div class="detail-actions">
       <button class="btn danger" data-acao="excluir">Excluir</button>
@@ -2136,6 +2150,21 @@ async function excluirContatoCard(aba, linha){
 
 /* ---- Agendamento inline (dentro do próprio card) ---- */
 
+/* Abre a tela de agendamento direto pelo ícone de calendário ao lado
+   do Status Comercial — funciona com qualquer status escolhido, sem
+   precisar expandir os detalhes do contato primeiro. */
+function abrirAgendamentoDireto(linha){
+  const ui = obterCardUI(linha);
+  const c = estado.contatos.find(x => x.linha === linha);
+  const temAgendamento = !!(c && c.AGENDAMENTO);
+
+  ui.expandido = true;
+  ui.agendamentoAberto = true;
+  ui.mostrarFormAgendamento = !temAgendamento;
+  ui.erroAgendamento = "";
+  atualizarCardCompleto(linha);
+}
+
 function abrirAgendamentoCard(linha){
   const ui = obterCardUI(linha);
 
@@ -2320,12 +2349,16 @@ async function confirmarAgendamentoCard(aba, linha){
   ui.erroAgendamento = "";
   renderCardExtra(linha);
 
+  const cAntes = estado.contatos.find(x => x.linha === linha);
+  const statusAntes = String((cAntes && cAntes.STATUS_COMERCIAL) || "").trim().toUpperCase();
+  const manterStatusAtual = statusAntes !== "AGENDADO";
+
   try{
-    const resultado = await apiAgendar(aba, linha, valor);
+    const resultado = await apiAgendar(aba, linha, valor, manterStatusAtual);
 
     const idx = estado.contatos.findIndex(x => x.linha === linha);
     if(idx !== -1){
-      estado.contatos[idx].STATUS_COMERCIAL = "AGENDADO";
+      if(!manterStatusAtual) estado.contatos[idx].STATUS_COMERCIAL = "AGENDADO";
       estado.contatos[idx].AGENDAMENTO = resultado.agendamento.dataHora;
     }
     salvarCacheLocal();
@@ -2333,6 +2366,7 @@ async function confirmarAgendamentoCard(aba, linha){
     ui.mostrarFormAgendamento = false;
     ui.salvandoAgendamento = false;
     ui.agendamentoAberto = false;
+    ui.expandido = false;
     if(!sincronizarCardComFiltroAtivo(linha)){
       atualizarCardCompleto(linha);
     }
