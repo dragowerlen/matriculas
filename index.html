@@ -948,7 +948,8 @@ function agruparContatosDuplicadosPorTelefone(lista){
 
 function rankReferido(valor){
   if(!valor) return 999; // vazio é o mais fraco de todos
-  const i = PRIORIDADE_REFERIDOS.indexOf(valor);
+  const alvo = String(valor).trim().toLowerCase();
+  const i = PRIORIDADE_REFERIDOS.findIndex(v => v.toLowerCase() === alvo);
   return i === -1 ? 998 : i; // opção personalizada: quase o mais fraco, só perde pra vazio
 }
 
@@ -1657,7 +1658,9 @@ async function handleMudancaNaLista(e){
     // Se o campo+valor escolhido é um dos gatilhos de agendamento
     // (Status Comercial = AGENDADO, Status do Contato = Quer futuramente...),
     // já abre a tela de agendamento pra escolher data e hora na hora.
-    const gatilho = GATILHOS_ABERTURA_AGENDAMENTO.some(g => g.campoDb === info.campoDb && g.valor === novoValor);
+    const gatilho = GATILHOS_ABERTURA_AGENDAMENTO.some(g =>
+      g.campoDb === info.campoDb && g.valor.trim().toLowerCase() === novoValor.trim().toLowerCase()
+    );
     if(gatilho){
       const ui = obterCardUI(linha);
       ui.expandido = true;
