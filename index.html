@@ -1324,11 +1324,13 @@ function renderTudo(){
                 </button>
               </div>
             </div>
-            <button class="btn-add" id="btnBuscarBarra" aria-label="Buscar" style="${estado.busca.trim() !== "" ? "background:rgba(255,255,255,.32);" : ""}">
+            <button class="btn-add" id="btnBuscarBarra" aria-label="Buscar" style="position:relative;${estado.busca.trim() !== "" ? "background:rgba(255,255,255,.32);" : ""}">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              ${estado.busca.trim() !== "" ? `<span class="menu-topo-dot"></span>` : ""}
             </button>
-            <button class="btn-add" id="btnFiltrarBarra" aria-label="Filtro" style="${algumFiltroAtivo() ? "background:rgba(255,255,255,.32);" : ""}">
+            <button class="btn-add" id="btnFiltrarBarra" aria-label="Filtro" style="position:relative;${algumFiltroAtivo() ? "background:rgba(255,255,255,.32);" : ""}">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="4,4 20,4 14,12.5 14,19 10,21 10,12.5"/></svg>
+              ${algumFiltroAtivo() ? `<span class="menu-topo-dot"></span>` : ""}
             </button>
           </div>
         </div>
