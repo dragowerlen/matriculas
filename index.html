@@ -1091,6 +1091,34 @@ async function mesclarTodosDuplicados(opcoes){
   renderListaEContagem();
 }
 
+/* Gera variações de um número de telefone brasileiro com e sem o 9º
+   dígito, pra busca encontrar o contato independente de ter digitado
+   o 9 ou não (só se aplica a celular — 8 dígitos locais vira 9 com o
+   9 na frente, e 9 dígitos começando com 9 vira 8 sem ele). Detecta
+   o número local em qualquer um desses formatos: só o número (8/9
+   dígitos), com DDD (10/11), ou com DDI+DDD (12/13, começando com 55). */
+function variantesComNono(digitos){
+  const variantes = new Set([digitos]);
+
+  function processarLocal(prefixo, local){
+    if(local.length === 8){
+      variantes.add(prefixo + "9" + local);
+    } else if(local.length === 9 && local.charAt(0) === "9"){
+      variantes.add(prefixo + local.slice(1));
+    }
+  }
+
+  if(digitos.length === 8 || digitos.length === 9){
+    processarLocal("", digitos);
+  } else if(digitos.length === 10 || digitos.length === 11){
+    processarLocal(digitos.slice(0, 2), digitos.slice(2));
+  } else if((digitos.length === 12 || digitos.length === 13) && digitos.startsWith("55")){
+    processarLocal(digitos.slice(0, 4), digitos.slice(4));
+  }
+
+  return Array.from(variantes);
+}
+
 function contatosFiltradosFinal(){
   const termoBrutoTotal = estado.busca.trim();
 
@@ -1116,9 +1144,13 @@ function contatosFiltradosFinal(){
         // Se o termo tem dígitos (telefone, por exemplo), compara também
         // ignorando espaços, +, (), - e qualquer outra formatação — assim
         // a busca encontra o contato independente de como o número foi
-        // digitado ou de como ele está salvo.
+        // digitado ou de como ele está salvo. Também tenta com e sem o
+        // 9º dígito, já que às vezes o número é digitado sem ele.
         const termoSoDigitos = termoOriginal.replace(/\D/g, "");
-        if(termoSoDigitos.length >= 4 && alvoSoDigitos.includes(termoSoDigitos)) return true;
+        if(termoSoDigitos.length >= 4){
+          const variantes = variantesComNono(termoSoDigitos);
+          if(variantes.some(v => alvoSoDigitos.includes(v))) return true;
+        }
 
         return false;
       });
@@ -1831,12 +1863,18 @@ function cardInnerHtml(c){
       <select class="status-comportamental-inline" data-linha="${c.linha}" data-aba="${c.aba}">
         ${(estado.opcoes.statusComportamental || [""]).map(o => `<option value="${escapeAttr(o)}" ${o === (c.STATUS_COMPORTAMENTAL || "") ? "selected" : ""}>${o === "" ? "(em branco)" : o}</option>`).join("")}
       </select>
+      <button type="button" class="btn-agendar-manual" data-linha="${c.linha}" aria-label="Agendar" title="Agendar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      </button>
     </div>
     <div class="card-linha-resumo card-status-inline-wrap">
       <span class="card-linha-resumo-k">Status Extra:</span>
       <select class="status-extra-inline" data-linha="${c.linha}" data-aba="${c.aba}">
         ${(estado.opcoes.statusExtra || [""]).map(o => `<option value="${escapeAttr(o)}" ${o === (c.STATUS_EXTRA || "") ? "selected" : ""}>${o === "" ? "(em branco)" : o}</option>`).join("")}
       </select>
+      <button type="button" class="btn-agendar-manual" data-linha="${c.linha}" aria-label="Agendar" title="Agendar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      </button>
     </div>
     ${badgesFiltroAtivo(c)}
     <div class="card-extra" id="cardExtra-${c.linha}" style="display:${ui.expandido ? "block" : "none"};">
