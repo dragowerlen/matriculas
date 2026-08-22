@@ -1706,6 +1706,7 @@ async function handleMudancaNaLista(e){
       ui.agendamentoAberto = true;
       ui.mostrarFormAgendamento = true;
       ui.erroAgendamento = "";
+      ui.campoStatusAgendamento = info.campoDb;
       atualizarCardCompleto(linha);
     }
 
@@ -1753,7 +1754,8 @@ function handleCliqueNaLista(e){
   if(e.target.closest("[data-acao='confirmar-agendamento']")){ confirmarAgendamentoCard(aba, linha); return; }
   if(e.target.closest("[data-acao='cancelar-agendamento']")){ cancelarAgendamentoCard(aba, linha); return; }
 
-  if(e.target.closest(".btn-agendar-manual")){ abrirAgendamentoDireto(linha); return; }
+  const btnAgendarManual = e.target.closest(".btn-agendar-manual");
+  if(btnAgendarManual){ abrirAgendamentoDireto(linha, btnAgendarManual.dataset.campo); return; }
 
   const btnMicrofone = e.target.closest(".btn-microfone");
   if(btnMicrofone){ alternarDitadoPorVoz(btnMicrofone); return; }
@@ -1854,7 +1856,7 @@ function cardInnerHtml(c){
       <select class="status-comercial-inline" data-linha="${c.linha}" data-aba="${c.aba}">
         ${(estado.opcoes.statusComercial || [""]).map(o => `<option value="${escapeAttr(o)}" ${o === (c.STATUS_COMERCIAL || "") ? "selected" : ""}>${o === "" ? "(em branco)" : o}</option>`).join("")}
       </select>
-      <button type="button" class="btn-agendar-manual" data-linha="${c.linha}" aria-label="Agendar" title="Agendar">
+      <button type="button" class="btn-agendar-manual" data-linha="${c.linha}" data-campo="STATUS_COMERCIAL" aria-label="Agendar" title="Agendar">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
       </button>
     </div>
@@ -1863,7 +1865,7 @@ function cardInnerHtml(c){
       <select class="status-comportamental-inline" data-linha="${c.linha}" data-aba="${c.aba}">
         ${(estado.opcoes.statusComportamental || [""]).map(o => `<option value="${escapeAttr(o)}" ${o === (c.STATUS_COMPORTAMENTAL || "") ? "selected" : ""}>${o === "" ? "(em branco)" : o}</option>`).join("")}
       </select>
-      <button type="button" class="btn-agendar-manual" data-linha="${c.linha}" aria-label="Agendar" title="Agendar">
+      <button type="button" class="btn-agendar-manual" data-linha="${c.linha}" data-campo="STATUS_COMPORTAMENTAL" aria-label="Agendar" title="Agendar">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
       </button>
     </div>
@@ -1872,7 +1874,7 @@ function cardInnerHtml(c){
       <select class="status-extra-inline" data-linha="${c.linha}" data-aba="${c.aba}">
         ${(estado.opcoes.statusExtra || [""]).map(o => `<option value="${escapeAttr(o)}" ${o === (c.STATUS_EXTRA || "") ? "selected" : ""}>${o === "" ? "(em branco)" : o}</option>`).join("")}
       </select>
-      <button type="button" class="btn-agendar-manual" data-linha="${c.linha}" aria-label="Agendar" title="Agendar">
+      <button type="button" class="btn-agendar-manual" data-linha="${c.linha}" data-campo="STATUS_EXTRA" aria-label="Agendar" title="Agendar">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
       </button>
     </div>
@@ -2191,9 +2193,11 @@ async function excluirContatoCard(aba, linha){
 /* ---- Agendamento inline (dentro do próprio card) ---- */
 
 /* Abre a tela de agendamento direto pelo ícone de calendário ao lado
-   do Status Comercial — funciona com qualquer status escolhido, sem
-   precisar expandir os detalhes do contato primeiro. */
-function abrirAgendamentoDireto(linha){
+   de qualquer um dos 3 status — funciona com qualquer status
+   escolhido, sem precisar expandir os detalhes do contato primeiro.
+   Guarda QUAL status foi usado, pra levar esse valor certo pro
+   título/nota do evento no Google Agenda. */
+function abrirAgendamentoDireto(linha, campoStatus){
   const ui = obterCardUI(linha);
   const c = estado.contatos.find(x => x.linha === linha);
   const temAgendamento = !!(c && c.AGENDAMENTO);
@@ -2202,6 +2206,7 @@ function abrirAgendamentoDireto(linha){
   ui.agendamentoAberto = true;
   ui.mostrarFormAgendamento = !temAgendamento;
   ui.erroAgendamento = "";
+  ui.campoStatusAgendamento = campoStatus || "STATUS_COMERCIAL";
   atualizarCardCompleto(linha);
 }
 
@@ -2291,15 +2296,17 @@ function obterTokenGoogleCalendar(){
   });
 }
 
-function montarTituloEventoAgenda(c){
-  const partes = [c.STATUS_COMERCIAL, c.NOME, c.TELEFONE, c.INDICADO_POR].filter(p => p && String(p).trim() !== "");
+function montarTituloEventoAgenda(c, campoStatus){
+  const status = c[campoStatus || "STATUS_COMERCIAL"];
+  const partes = [status, c.NOME, c.TELEFONE, c.INDICADO_POR].filter(p => p && String(p).trim() !== "");
   return partes.join(" - ");
 }
 
-function montarNotasEventoAgenda(c){
+function montarNotasEventoAgenda(c, campoStatus){
+  const status = c[campoStatus || "STATUS_COMERCIAL"];
   const digitosTelefone = String(c.TELEFONE || "").replace(/\D/g, "");
   const linhas = [
-    "Status: " + (c.STATUS_COMERCIAL || ""),
+    "Status: " + (status || ""),
     "Nome: " + (c.NOME || ""),
     "Observação do contato: " + (c.OBSERVACAO || ""),
     "Telefone: " + (c.TELEFONE || ""),
@@ -2315,15 +2322,15 @@ function montarNotasEventoAgenda(c){
    do Google, pra ser salvo em ID_EVENTO_AGENDA no banco. Erros aqui
    não devem travar o resto do fluxo — o agendamento já foi salvo no
    app de qualquer forma. */
-async function criarOuAtualizarEventoAgenda(c, dataHoraIso){
+async function criarOuAtualizarEventoAgenda(c, dataHoraIso, campoStatus){
   const token = await obterTokenGoogleCalendar();
 
   const inicio = new Date(dataHoraIso);
   const fim = new Date(inicio.getTime() + 60 * 60 * 1000); // 1h de duração padrão
 
   const corpo = {
-    summary: montarTituloEventoAgenda(c),
-    description: montarNotasEventoAgenda(c),
+    summary: montarTituloEventoAgenda(c, campoStatus),
+    description: montarNotasEventoAgenda(c, campoStatus),
     start: { dateTime: inicio.toISOString(), timeZone: "America/Sao_Paulo" },
     end: { dateTime: fim.toISOString(), timeZone: "America/Sao_Paulo" }
   };
@@ -2347,7 +2354,7 @@ async function criarOuAtualizarEventoAgenda(c, dataHoraIso){
     // Se o evento antigo já não existir mais no Google (apagado manualmente
     // por lá, por exemplo), cria um novo em vez de falhar.
     if(eventoExistente && resposta.status === 404){
-      return criarOuAtualizarEventoAgenda({ ...c, ID_EVENTO_AGENDA: null }, dataHoraIso);
+      return criarOuAtualizarEventoAgenda({ ...c, ID_EVENTO_AGENDA: null }, dataHoraIso, campoStatus);
     }
     throw new Error("Falha na Agenda (" + resposta.status + ")");
   }
@@ -2417,7 +2424,7 @@ async function confirmarAgendamentoCard(aba, linha){
     // avisa sem desfazer nada.
     try{
       const contatoAtual = estado.contatos[idx];
-      const eventoId = await criarOuAtualizarEventoAgenda(contatoAtual, valor);
+      const eventoId = await criarOuAtualizarEventoAgenda(contatoAtual, valor, ui.campoStatusAgendamento);
       if(eventoId && eventoId !== contatoAtual.ID_EVENTO_AGENDA){
         contatoAtual.ID_EVENTO_AGENDA = eventoId;
         await apiAtualizar(aba, linha, { ID_EVENTO_AGENDA: eventoId });
