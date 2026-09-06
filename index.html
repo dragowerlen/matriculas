@@ -2262,6 +2262,16 @@ function cancelarFormAgendamentoCard(linha){
 let googleTokenClientCalendar = null;
 let tokenGoogleCalendarAtual = null;
 
+const CHAVE_EMAIL_GOOGLE_PREFERIDO = "emailGooglePreferido";
+
+function obterEmailGooglePreferido(){
+  try{ return localStorage.getItem(CHAVE_EMAIL_GOOGLE_PREFERIDO) || ""; }catch(e){ return ""; }
+}
+
+function salvarEmailGooglePreferido(email){
+  try{ localStorage.setItem(CHAVE_EMAIL_GOOGLE_PREFERIDO, String(email || "").trim()); }catch(e){ /* ignora */ }
+}
+
 function obterTokenGoogleCalendar(){
   return new Promise((resolve, reject) => {
     if(GOOGLE_CLIENT_ID.startsWith("COLE_AQUI")){
@@ -2278,9 +2288,11 @@ function obterTokenGoogleCalendar(){
     }
 
     if(!googleTokenClientCalendar){
+      const emailPreferido = obterEmailGooglePreferido();
       googleTokenClientCalendar = google.accounts.oauth2.initTokenClient({
         client_id: GOOGLE_CLIENT_ID,
         scope: GOOGLE_CALENDAR_SCOPE,
+        hint: emailPreferido || undefined,
         callback: (resposta) => {
           if(resposta && resposta.access_token){
             tokenGoogleCalendarAtual = resposta.access_token;
@@ -2803,6 +2815,7 @@ function iniciarImportarGoogleContatos(){
     googleTokenClientContatos = google.accounts.oauth2.initTokenClient({
       client_id: GOOGLE_CLIENT_ID,
       scope: GOOGLE_CONTACTS_SCOPE,
+      hint: obterEmailGooglePreferido() || undefined,
       callback: (resposta) => {
         if(resposta && resposta.access_token){
           buscarContatosGoogle(resposta.access_token);
@@ -3165,6 +3178,17 @@ function renderTelaAgenda(){
     <div class="sheet-header"><h3>Agenda</h3><button class="close" id="fecharSheet">✕</button></div>
     <div class="sheet-body">
       <div class="mensagem-whatsapp-box">
+        <div class="mensagem-whatsapp-titulo">Sua conta Google</div>
+        <p style="color:var(--ink-faint);font-size:12px;margin:0 0 8px;">
+          Se você tem mais de uma conta Google no celular/computador, salve aqui a que você usa pro Agenda e Contatos — assim ele pula a etapa de "escolher a conta" toda vez que pedir autorização.
+        </p>
+        <input type="email" id="inputEmailGooglePreferido" placeholder="seuemail@gmail.com" value="${escapeAttr(obterEmailGooglePreferido())}" style="width:100%;box-sizing:border-box;border:1px solid #DAD5C8;border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;">
+        <button class="btn ghost" id="btnSalvarEmailGoogle" style="width:100%;margin-top:8px;">Salvar e-mail</button>
+      </div>
+
+      <div style="height:16px;"></div>
+
+      <div class="mensagem-whatsapp-box">
         <div class="mensagem-whatsapp-titulo">Google Agenda</div>
         <p style="color:var(--ink-faint);font-size:12px;margin:0 0 10px;">
           ${pendentes > 0
@@ -3179,6 +3203,17 @@ function renderTelaAgenda(){
   `;
 
   document.getElementById("fecharSheet").addEventListener("click", fecharTelaAgenda);
+
+  document.getElementById("btnSalvarEmailGoogle").addEventListener("click", () => {
+    const email = document.getElementById("inputEmailGooglePreferido").value;
+    salvarEmailGooglePreferido(email);
+    // Força pedir autorização de novo na próxima vez, já com o hint novo
+    googleTokenClientCalendar = null;
+    tokenGoogleCalendarAtual = null;
+    googleTokenClientContatos = null;
+    mostrarToast("E-mail salvo!");
+  });
+
   document.getElementById("btnSincronizarAgendamentos").addEventListener("click", async () => {
     await sincronizarTodosAgendamentosComGoogle();
     renderTelaAgenda();
