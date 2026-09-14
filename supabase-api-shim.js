@@ -36,7 +36,11 @@ const MAPA_CAMPOS = {
   REGISTRO_STATUS_EXTRA: "data_status_extra",
   LINK_WHATSAPP: "link_whatsapp",
   AGENDAMENTO: "agendamento",
-  ID_EVENTO_AGENDA: "id_evento"
+  ID_EVENTO_AGENDA: "id_evento",
+  AGENDAMENTO_STATUS_CONTATO: "agendamento_status_contato",
+  ID_EVENTO_STATUS_CONTATO: "id_evento_status_contato",
+  AGENDAMENTO_STATUS_EXTRA: "agendamento_status_extra",
+  ID_EVENTO_STATUS_EXTRA: "id_evento_status_extra"
 };
 
 const CAMPOS_APP = Object.keys(MAPA_CAMPOS);
@@ -78,7 +82,7 @@ function linhaSupabaseParaContatoApp(linha){
     if(chaveApp === "REGISTRO_STATUS_COMERCIAL" || chaveApp === "REGISTRO_TELEFONE" || chaveApp === "REGISTRO_STATUS_COMPORTAMENTAL" || chaveApp === "REGISTRO_STATUS_EXTRA"){
       valor = isoParaBrData(valor);
     }
-    if(chaveApp === "AGENDAMENTO"){
+    if(chaveApp === "AGENDAMENTO" || chaveApp === "AGENDAMENTO_STATUS_CONTATO" || chaveApp === "AGENDAMENTO_STATUS_EXTRA"){
       valor = isoParaBrDataHora(valor);
     }
     contato[chaveApp] = valor;
@@ -484,11 +488,14 @@ async function apiExcluir(aba, linha){
  * normalmente, só não aparece automaticamente na sua Agenda do
  * Google.
  * ============================================================ */
-async function apiAgendar(aba, linha, dataHora, manterStatusAtual){
+async function apiAgendar(aba, linha, dataHora, opcoes){
+  opcoes = opcoes || {};
+  const colunaAgendamento = opcoes.colunaAgendamento || "agendamento";
+  const manterStatusAtual = opcoes.manterStatusAtual;
   const dataFormatada = isoParaBrDataHora(dataHora);
 
-  const camposParaSalvar = { agendamento: new Date(dataHora).toISOString() };
-  if(!manterStatusAtual){
+  const camposParaSalvar = { [colunaAgendamento]: new Date(dataHora).toISOString() };
+  if(colunaAgendamento === "agendamento" && !manterStatusAtual){
     camposParaSalvar.status_comercial = "AGENDADO";
     camposParaSalvar.data_status_comercial = hojeBrIso();
   }
@@ -503,10 +510,14 @@ async function apiAgendar(aba, linha, dataHora, manterStatusAtual){
   return { sucesso: true, agendamento: { dataHora: dataFormatada } };
 }
 
-async function apiCancelarAgendamento(aba, linha){
+async function apiCancelarAgendamento(aba, linha, opcoes){
+  opcoes = opcoes || {};
+  const colunaAgendamento = opcoes.colunaAgendamento || "agendamento";
+  const colunaEvento = opcoes.colunaEvento || "id_evento";
+
   const { error } = await supabaseClient
     .from("contatos")
-    .update({ agendamento: null, id_evento: null })
+    .update({ [colunaAgendamento]: null, [colunaEvento]: null })
     .eq("id", linha);
 
   if(error) throw new Error(error.message);
