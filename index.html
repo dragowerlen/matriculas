@@ -420,8 +420,12 @@ const CAMPOS_FILTRO_DATA = [
   { chave: "REGISTRO_STATUS_COMPORTAMENTAL", rotulo: "Data do Status do Contato" },
   { chave: "REGISTRO_STATUS_EXTRA", rotulo: "Data do Status Extra" },
   { chave: "REGISTRO_TELEFONE", rotulo: "Data do Telefone" },
-  { chave: "AGENDAMENTO", rotulo: "Data do Agendamento" }
+  { chave: "AGENDAMENTO", rotulo: "Agend. Status Comercial" },
+  { chave: "AGENDAMENTO_STATUS_CONTATO", rotulo: "Agend. Status do Contato" },
+  { chave: "AGENDAMENTO_STATUS_EXTRA", rotulo: "Agend. Status Extra" }
 ];
+
+
 
 /* ============================================================
  * ESTADO
@@ -1500,8 +1504,10 @@ function renderTelaFiltro(){
       <div class="filter-grid">${chipBotao("STATUS_EXTRA")}${chipBotao("PROFISSAO")}${chipBotao("REGISTRO_STATUS_COMERCIAL")}</div>
       <div class="filter-grid">${chipBotao("REGISTRO_STATUS_COMPORTAMENTAL")}${chipBotao("REGISTRO_STATUS_EXTRA")}${chipBotao("REGISTRO_TELEFONE")}</div>
       <div class="filter-grid">
-        ${chipBotao("AGENDAMENTO")}
-        <div style="display:flex;gap:6px;align-items:center;grid-column: span 2;">
+        ${chipBotao("AGENDAMENTO")}${chipBotao("AGENDAMENTO_STATUS_CONTATO")}${chipBotao("AGENDAMENTO_STATUS_EXTRA")}
+      </div>
+      <div class="filter-grid">
+        <div style="display:flex;gap:6px;align-items:center;grid-column: span 3;">
           <button type="button" class="chip grid ${temFiltroPraLimpar ? "active" : ""}" id="btnLimparFiltro" style="flex:1;" ${temFiltroPraLimpar ? "" : "disabled"}>Limpar</button>
           <button type="button" class="btn-icon-claro" id="btnBaixarFiltrado" aria-label="Baixar lista filtrada em Excel/CSV" title="Baixar lista filtrada">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -1654,6 +1660,33 @@ const MAPA_SELECT_INLINE_STATUS = [
 /* Combinações de campo+valor que abrem a tela de agendamento
    automaticamente ao serem escolhidas (igual "AGENDADO" já fazia no
    Status Comercial). */
+/* Cada um dos 3 status tem seu PRÓPRIO agendamento independente —
+   dá pra ter até 3 agendamentos ativos ao mesmo tempo pro mesmo
+   contato, um por status. */
+const AGENDAMENTO_POR_CAMPO = {
+  STATUS_COMERCIAL: {
+    chaveAgendamento: "AGENDAMENTO", chaveEvento: "ID_EVENTO_AGENDA",
+    colunaAgendamento: "agendamento", colunaEvento: "id_evento",
+    rotulo: "Status Comercial"
+  },
+  STATUS_COMPORTAMENTAL: {
+    chaveAgendamento: "AGENDAMENTO_STATUS_CONTATO", chaveEvento: "ID_EVENTO_STATUS_CONTATO",
+    colunaAgendamento: "agendamento_status_contato", colunaEvento: "id_evento_status_contato",
+    rotulo: "Status do Contato"
+  },
+  STATUS_EXTRA: {
+    chaveAgendamento: "AGENDAMENTO_STATUS_EXTRA", chaveEvento: "ID_EVENTO_STATUS_EXTRA",
+    colunaAgendamento: "agendamento_status_extra", colunaEvento: "id_evento_status_extra",
+    rotulo: "Status Extra"
+  }
+};
+
+function formatarAgendamentoDetalhe(c, campoStatus){
+  const valor = c[AGENDAMENTO_POR_CAMPO[campoStatus].chaveAgendamento];
+  if(!valor) return "";
+  return valor + " (" + calcularDiaSemanaTexto(brDataHoraParaInputValue(valor)) + ")";
+}
+
 const GATILHOS_ABERTURA_AGENDAMENTO = [
   { campoDb: "STATUS_COMERCIAL", valor: "AGENDADO" }
 ];
@@ -1958,10 +1991,14 @@ function cardExtraConteudo(c, ui){
     <div class="detail-grid">
       ${campoDetalheLinha("Data do Telefone", c.REGISTRO_TELEFONE, false)}
       ${campoDetalheLinha(
-        String(c.STATUS_COMERCIAL || "").trim().toUpperCase() === "FOLLOW UP" ? "Data do Follow Up" : "Data do Agendamento",
-        c.AGENDAMENTO ? c.AGENDAMENTO + " (" + calcularDiaSemanaTexto(brDataHoraParaInputValue(c.AGENDAMENTO)) + ")" : "",
+        String(c.STATUS_COMERCIAL || "").trim().toUpperCase() === "FOLLOW UP" ? "Agend. (Follow Up)" : "Agend. (Status Comercial)",
+        formatarAgendamentoDetalhe(c, "STATUS_COMERCIAL"),
         false
       )}
+    </div>
+    <div class="detail-grid">
+      ${campoDetalheLinha("Agend. (Status do Contato)", formatarAgendamentoDetalhe(c, "STATUS_COMPORTAMENTAL"), false)}
+      ${campoDetalheLinha("Agend. (Status Extra)", formatarAgendamentoDetalhe(c, "STATUS_EXTRA"), false)}
     </div>
     <div class="detail-actions">
       <button class="btn danger" data-acao="excluir">Excluir</button>
@@ -2023,12 +2060,15 @@ function cardInnerHtmlEdicao(c, ui){
 }
 
 function cardAgendamentoWidget(c, ui){
-  const agendamentoAtual = c.AGENDAMENTO;
+  const campoStatus = ui.campoStatusAgendamento || "STATUS_COMERCIAL";
+  const config = AGENDAMENTO_POR_CAMPO[campoStatus];
+  const agendamentoAtual = c[config.chaveAgendamento];
   const temAgendamento = !!agendamentoAtual;
 
   if(ui.mostrarFormAgendamento){
     const valorPadrao = temAgendamento ? brDataHoraParaInputValue(agendamentoAtual) : sugestaoInputAgendamento();
     return `
+      <div class="detail-field"><div class="k">Agendamento de</div><div class="v"><b>${config.rotulo}</b></div></div>
       ${ui.erroAgendamento ? `<div class="aviso-erro">${ui.erroAgendamento}</div>` : ""}
       <div class="detail-field">
         <div class="k">Nova data e hora</div>
@@ -2044,7 +2084,7 @@ function cardAgendamentoWidget(c, ui){
 
   return `
     <div class="detail-field">
-      <div class="k">Status</div>
+      <div class="k">Status (${config.rotulo})</div>
       <div class="v">Agendado para <b>${agendamentoAtual}</b> <span class="dia-semana-agenda" style="display:inline;">(${calcularDiaSemanaTexto(brDataHoraParaInputValue(agendamentoAtual))})</span></div>
     </div>
     <div class="detail-actions">
@@ -2200,13 +2240,15 @@ async function excluirContatoCard(aba, linha){
 function abrirAgendamentoDireto(linha, campoStatus){
   const ui = obterCardUI(linha);
   const c = estado.contatos.find(x => x.linha === linha);
-  const temAgendamento = !!(c && c.AGENDAMENTO);
+  const campo = campoStatus || "STATUS_COMERCIAL";
+  const config = AGENDAMENTO_POR_CAMPO[campo];
+  const temAgendamento = !!(c && c[config.chaveAgendamento]);
 
   ui.expandido = true;
   ui.agendamentoAberto = true;
   ui.mostrarFormAgendamento = !temAgendamento;
   ui.erroAgendamento = "";
-  ui.campoStatusAgendamento = campoStatus || "STATUS_COMERCIAL";
+  ui.campoStatusAgendamento = campo;
   atualizarCardCompleto(linha);
 }
 
@@ -2221,12 +2263,15 @@ function abrirAgendamentoCard(linha){
     return;
   }
 
+  const campo = ui.campoStatusAgendamento || "STATUS_COMERCIAL";
+  const config = AGENDAMENTO_POR_CAMPO[campo];
   const c = estado.contatos.find(x => x.linha === linha);
-  const temAgendamento = !!(c && c.AGENDAMENTO);
+  const temAgendamento = !!(c && c[config.chaveAgendamento]);
 
   ui.agendamentoAberto = true;
   ui.mostrarFormAgendamento = !temAgendamento;
   ui.erroAgendamento = "";
+  ui.campoStatusAgendamento = campo;
   renderCardExtra(linha);
 }
 
@@ -2239,8 +2284,10 @@ function reagendarCard(linha){
 
 function cancelarFormAgendamentoCard(linha){
   const ui = obterCardUI(linha);
+  const campo = ui.campoStatusAgendamento || "STATUS_COMERCIAL";
+  const config = AGENDAMENTO_POR_CAMPO[campo];
   const c = estado.contatos.find(x => x.linha === linha);
-  const temAgendamento = !!(c && c.AGENDAMENTO);
+  const temAgendamento = !!(c && c[config.chaveAgendamento]);
 
   if(temAgendamento){
     ui.mostrarFormAgendamento = false;
@@ -2334,7 +2381,8 @@ function montarNotasEventoAgenda(c, campoStatus){
    do Google, pra ser salvo em ID_EVENTO_AGENDA no banco. Erros aqui
    não devem travar o resto do fluxo — o agendamento já foi salvo no
    app de qualquer forma. */
-async function criarOuAtualizarEventoAgenda(c, dataHoraIso, campoStatus){
+async function criarOuAtualizarEventoAgenda(c, dataHoraIso, campoStatus, chaveEvento){
+  chaveEvento = chaveEvento || "ID_EVENTO_AGENDA";
   const token = await obterTokenGoogleCalendar();
 
   const inicio = new Date(dataHoraIso);
@@ -2347,7 +2395,7 @@ async function criarOuAtualizarEventoAgenda(c, dataHoraIso, campoStatus){
     end: { dateTime: fim.toISOString(), timeZone: "America/Sao_Paulo" }
   };
 
-  const eventoExistente = c.ID_EVENTO_AGENDA;
+  const eventoExistente = c[chaveEvento];
   const calendarioCodificado = encodeURIComponent(GOOGLE_CALENDAR_ID);
   const url = eventoExistente
     ? `https://www.googleapis.com/calendar/v3/calendars/${calendarioCodificado}/events/${eventoExistente}`
@@ -2366,7 +2414,7 @@ async function criarOuAtualizarEventoAgenda(c, dataHoraIso, campoStatus){
     // Se o evento antigo já não existir mais no Google (apagado manualmente
     // por lá, por exemplo), cria um novo em vez de falhar.
     if(eventoExistente && resposta.status === 404){
-      return criarOuAtualizarEventoAgenda({ ...c, ID_EVENTO_AGENDA: null }, dataHoraIso, campoStatus);
+      return criarOuAtualizarEventoAgenda({ ...c, [chaveEvento]: null }, dataHoraIso, campoStatus, chaveEvento);
     }
     throw new Error("Falha na Agenda (" + resposta.status + ")");
   }
@@ -2394,6 +2442,9 @@ async function confirmarAgendamentoCard(aba, linha){
   const ui = obterCardUI(linha);
   if(ui.salvandoAgendamento) return;
 
+  const campoStatus = ui.campoStatusAgendamento || "STATUS_COMERCIAL";
+  const config = AGENDAMENTO_POR_CAMPO[campoStatus];
+
   const el = document.getElementById("card-" + linha);
   const input = el.querySelector("[data-agenda-input]");
   const valor = input.value;
@@ -2408,17 +2459,23 @@ async function confirmarAgendamentoCard(aba, linha){
   ui.erroAgendamento = "";
   renderCardExtra(linha);
 
+  // Só o Status Comercial força o valor "AGENDADO" — os outros dois
+  // mantêm o status que já estava selecionado.
+  const ehComercial = campoStatus === "STATUS_COMERCIAL";
   const cAntes = estado.contatos.find(x => x.linha === linha);
   const statusAntes = String((cAntes && cAntes.STATUS_COMERCIAL) || "").trim().toUpperCase();
-  const manterStatusAtual = statusAntes !== "AGENDADO";
+  const manterStatusAtual = !ehComercial || statusAntes !== "AGENDADO";
 
   try{
-    const resultado = await apiAgendar(aba, linha, valor, manterStatusAtual);
+    const resultado = await apiAgendar(aba, linha, valor, {
+      colunaAgendamento: config.colunaAgendamento,
+      manterStatusAtual
+    });
 
     const idx = estado.contatos.findIndex(x => x.linha === linha);
     if(idx !== -1){
-      if(!manterStatusAtual) estado.contatos[idx].STATUS_COMERCIAL = "AGENDADO";
-      estado.contatos[idx].AGENDAMENTO = resultado.agendamento.dataHora;
+      if(ehComercial && !manterStatusAtual) estado.contatos[idx].STATUS_COMERCIAL = "AGENDADO";
+      estado.contatos[idx][config.chaveAgendamento] = resultado.agendamento.dataHora;
     }
     salvarCacheLocal();
 
@@ -2436,10 +2493,10 @@ async function confirmarAgendamentoCard(aba, linha){
     // avisa sem desfazer nada.
     try{
       const contatoAtual = estado.contatos[idx];
-      const eventoId = await criarOuAtualizarEventoAgenda(contatoAtual, valor, ui.campoStatusAgendamento);
-      if(eventoId && eventoId !== contatoAtual.ID_EVENTO_AGENDA){
-        contatoAtual.ID_EVENTO_AGENDA = eventoId;
-        await apiAtualizar(aba, linha, { ID_EVENTO_AGENDA: eventoId });
+      const eventoId = await criarOuAtualizarEventoAgenda(contatoAtual, valor, campoStatus, config.chaveEvento);
+      if(eventoId && eventoId !== contatoAtual[config.chaveEvento]){
+        contatoAtual[config.chaveEvento] = eventoId;
+        await apiAtualizar(aba, linha, { [config.chaveEvento]: eventoId });
       }
     }catch(erroAgenda){
       mostrarToast("Agendado no app, mas não sincronizou com o Google Agenda: " + erroAgenda.message);
@@ -2455,19 +2512,25 @@ async function cancelarAgendamentoCard(aba, linha){
   if(!confirm("Cancelar este agendamento? O evento será removido da agenda.")) return;
 
   const ui = obterCardUI(linha);
+  const campoStatus = ui.campoStatusAgendamento || "STATUS_COMERCIAL";
+  const config = AGENDAMENTO_POR_CAMPO[campoStatus];
+
   ui.salvandoAgendamento = true;
   renderCardExtra(linha);
 
   try{
     const idxAntes = estado.contatos.findIndex(x => x.linha === linha);
-    const eventoIdAntigo = idxAntes !== -1 ? estado.contatos[idxAntes].ID_EVENTO_AGENDA : null;
+    const eventoIdAntigo = idxAntes !== -1 ? estado.contatos[idxAntes][config.chaveEvento] : null;
 
-    await apiCancelarAgendamento(aba, linha);
+    await apiCancelarAgendamento(aba, linha, {
+      colunaAgendamento: config.colunaAgendamento,
+      colunaEvento: config.colunaEvento
+    });
 
     const idx = estado.contatos.findIndex(x => x.linha === linha);
     if(idx !== -1){
-      estado.contatos[idx].AGENDAMENTO = "";
-      estado.contatos[idx].ID_EVENTO_AGENDA = "";
+      estado.contatos[idx][config.chaveAgendamento] = "";
+      estado.contatos[idx][config.chaveEvento] = "";
     }
     salvarCacheLocal();
 
@@ -3220,8 +3283,19 @@ function renderTelaAgenda(){
   });
 }
 
+/* Lista { contato, campoStatus } de todo agendamento (em qualquer um
+   dos 3 status) que ainda não tem evento correspondente no Google. */
 function contatosAgendadosSemSincronizar(){
-  return estado.contatos.filter(c => c.AGENDAMENTO && !c.ID_EVENTO_AGENDA);
+  const pendentes = [];
+  estado.contatos.forEach(c => {
+    Object.keys(AGENDAMENTO_POR_CAMPO).forEach(campoStatus => {
+      const config = AGENDAMENTO_POR_CAMPO[campoStatus];
+      if(c[config.chaveAgendamento] && !c[config.chaveEvento]){
+        pendentes.push({ contato: c, campoStatus });
+      }
+    });
+  });
+  return pendentes;
 }
 
 let sincronizandoAgendamentosGoogle = false;
@@ -3241,13 +3315,14 @@ async function sincronizarTodosAgendamentosComGoogle(){
   let sucesso = 0;
   let erros = 0;
 
-  for(const c of pendentes){
+  for(const { contato: c, campoStatus } of pendentes){
+    const config = AGENDAMENTO_POR_CAMPO[campoStatus];
     try{
-      const dataHoraIso = brDataHoraParaInputValue(c.AGENDAMENTO);
-      const eventoId = await criarOuAtualizarEventoAgenda(c, dataHoraIso);
+      const dataHoraIso = brDataHoraParaInputValue(c[config.chaveAgendamento]);
+      const eventoId = await criarOuAtualizarEventoAgenda(c, dataHoraIso, campoStatus, config.chaveEvento);
       if(eventoId){
-        c.ID_EVENTO_AGENDA = eventoId;
-        await apiAtualizar(c.aba, c.linha, { ID_EVENTO_AGENDA: eventoId });
+        c[config.chaveEvento] = eventoId;
+        await apiAtualizar(c.aba, c.linha, { [config.chaveEvento]: eventoId });
         sucesso++;
       }
     }catch(err){
