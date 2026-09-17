@@ -376,6 +376,17 @@ const GOOGLE_CONTACTS_SCOPE = "https://www.googleapis.com/auth/contacts";
 const GOOGLE_CALENDAR_ID = "2ecd8f0d52dac8f30b79ceeaf85e563568d25dbc50b1bd330f02aa4766aeccb6@group.calendar.google.com";
 const GOOGLE_CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events";
 
+/* Escopo restrito do Drive: só enxerga/edita arquivos e pastas que o
+   PRÓPRIO app criar — nunca o Drive inteiro do usuário. */
+const GOOGLE_DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+const CHAVE_PASTA_BACKUP_DRIVE = "pastaBackupDriveId";
+
+/* Repositório público no GitHub onde o código do app fica hospedado —
+   pra baixar ele inteiro (código-fonte) no backup. */
+const GITHUB_REPO_OWNER = "dragowerlen";
+const GITHUB_REPO_NOME = "matriculas";
+const GITHUB_REPO_BRANCH = "main";
+
 /* Caractere que marca um contato como "de trabalho" no Google Contatos.
    Só contatos cujo nome começar com isso são buscados/importados —
    contatos pessoais (sem o caractere) são ignorados. */
@@ -447,6 +458,8 @@ const estado = {
   erroNovo: "",
   naTelaRelatorio: false,
   naTelaAgenda: false,
+  naTelaBackup: false,
+  ultimoBackupLink: "",
   relatorioCampo: "STATUS_COMERCIAL",
   naTelaManutencao: false,
   naTelaImportarLote: false,
@@ -1342,6 +1355,10 @@ function renderTudo(){
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
               </button>
               <div class="menu-topo-dropdown" id="menuTopoDropdown" style="display:${estado.mostrarMenuTopo ? "block" : "none"};">
+                <button class="menu-topo-item" id="menuItemBackup">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  Backup
+                </button>
                 <button class="menu-topo-item" id="menuItemManutencao">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.04 1.56V21a2 2 0 0 1-4 0v-.09A1.7 1.7 0 0 0 8.96 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.04H3a2 2 0 0 1 0-4h.09A1.7 1.7 0 0 0 4.6 8.96a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1.04-1.56V3a2 2 0 0 1 4 0v.09a1.7 1.7 0 0 0 1.04 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.56 1.04H21a2 2 0 0 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1.04z"/></svg>
                   Configurações
@@ -1393,6 +1410,10 @@ function renderTudo(){
     if(dropdown) dropdown.style.display = "none";
   }
 
+  document.getElementById("menuItemBackup").addEventListener("click", () => {
+    fecharDropdownTopoRapido();
+    abrirTelaBackup();
+  });
   document.getElementById("menuItemManutencao").addEventListener("click", () => {
     fecharDropdownTopoRapido();
     abrirTelaManutencao();
@@ -2650,6 +2671,7 @@ function fecharSheet(){
   estado.naTelaRelatorio = false;
   estado.naTelaFiltro = false;
   estado.naTelaAgenda = false;
+  estado.naTelaBackup = false;
 }
 
 /* ============================================================
@@ -3221,6 +3243,257 @@ function fecharAutocompleteTags(id){
    correspondente no Google Agenda — seja porque o agendamento é de
    antes dessa função existir, seja porque a sincronização falhou na
    hora (sem internet, etc.) e nunca foi tentada de novo. */
+/* ============================================================
+ * BACKUP COMPLETO — exporta as 3 tabelas do MATRÍCULAS (contatos,
+ * opcoes_lista, mensagens_whatsapp) em CSV, sem nenhuma transformação
+ * (diferente do "Exportar planilha" comum), e sobe direto pro Google
+ * Drive, sempre na mesma pasta — sem precisar escolher local.
+ * ============================================================ */
+let googleTokenClientDrive = null;
+let tokenGoogleDriveAtual = null;
+let backupEmAndamento = false;
+
+function obterTokenGoogleDrive(){
+  return new Promise((resolve, reject) => {
+    if(GOOGLE_CLIENT_ID.startsWith("COLE_AQUI")){
+      reject(new Error("Configuração do Google ainda não foi concluída."));
+      return;
+    }
+    if(typeof google === "undefined" || !google.accounts || !google.accounts.oauth2){
+      reject(new Error("Não foi possível carregar o login do Google."));
+      return;
+    }
+    if(tokenGoogleDriveAtual){
+      resolve(tokenGoogleDriveAtual);
+      return;
+    }
+
+    if(!googleTokenClientDrive){
+      googleTokenClientDrive = google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: GOOGLE_DRIVE_SCOPE,
+        hint: obterEmailGooglePreferido() || undefined,
+        callback: (resposta) => {
+          if(resposta && resposta.access_token){
+            tokenGoogleDriveAtual = resposta.access_token;
+            resolve(resposta.access_token);
+          } else {
+            reject(new Error("Não foi possível conectar ao Google Drive."));
+          }
+        }
+      });
+    }
+
+    googleTokenClientDrive.requestAccessToken();
+  });
+}
+
+function obterPastaBackupSalva(){
+  try{ return localStorage.getItem(CHAVE_PASTA_BACKUP_DRIVE) || ""; }catch(e){ return ""; }
+}
+
+function salvarPastaBackup(id){
+  try{ localStorage.setItem(CHAVE_PASTA_BACKUP_DRIVE, id); }catch(e){ /* ignora */ }
+}
+
+/* Confirma que a pasta salva ainda existe (não foi apagada manualmente
+   no Drive); se não existir mais, ou se nunca existiu, cria uma nova
+   chamada "Backups MATRÍCULAS" e lembra o ID dela pra sempre usar a
+   mesma dali em diante. */
+async function obterOuCriarPastaBackup(token){
+  const idSalvo = obterPastaBackupSalva();
+
+  if(idSalvo){
+    const resposta = await fetch(`https://www.googleapis.com/drive/v3/files/${idSalvo}?fields=id,trashed`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if(resposta.ok){
+      const dados = await resposta.json();
+      if(!dados.trashed) return idSalvo;
+    }
+    // Se não existe mais (apagada/movida pra lixeira), cria outra abaixo.
+  }
+
+  const criacao = await fetch("https://www.googleapis.com/drive/v3/files", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ name: "Backups MATRÍCULAS", mimeType: "application/vnd.google-apps.folder" })
+  });
+  if(!criacao.ok) throw new Error("Não foi possível criar a pasta de backup no Drive.");
+
+  const pastaCriada = await criacao.json();
+  salvarPastaBackup(pastaCriada.id);
+  return pastaCriada.id;
+}
+
+/* Converte uma lista de objetos (linhas de uma tabela) em texto CSV,
+   usando TODAS as colunas que existirem, sem nenhuma transformação —
+   é um backup, precisa ser fiel ao banco. */
+function gerarCsvTabelaCompleta(linhas){
+  if(!linhas || linhas.length === 0) return "Sem dados.";
+
+  const colunas = Object.keys(linhas[0]);
+  const cabecalho = colunas.map(c => escaparCampoCsv(c)).join(";");
+  const corpo = linhas.map(linha => colunas.map(c => escaparCampoCsv(linha[c])).join(";")).join("\n");
+  return "\uFEFF" + cabecalho + "\n" + corpo;
+}
+
+async function baixarTabelaCompleta(nomeTabela){
+  const { data, error } = await supabaseClient.from(nomeTabela).select("*");
+  if(error) throw new Error(`Erro ao ler "${nomeTabela}": ` + error.message);
+  return gerarCsvTabelaCompleta(data);
+}
+
+/* Sobe um arquivo pro Drive, dentro da pasta de backup — upload
+   multipart (metadados + conteúdo). "conteudo" pode ser texto (CSV)
+   ou um Blob binário (zip) — o Blob final aceita os dois misturados. */
+async function subirArquivoParaDrive(token, pastaId, nomeArquivo, conteudo, mimeType){
+  const limite = "matriculas_backup_boundary";
+  const metadados = { name: nomeArquivo, parents: [pastaId], mimeType };
+
+  const corpo = new Blob([
+    `--${limite}\r\n`,
+    `Content-Type: application/json; charset=UTF-8\r\n\r\n`,
+    JSON.stringify(metadados) + `\r\n`,
+    `--${limite}\r\n`,
+    `Content-Type: ${mimeType}\r\n\r\n`,
+    conteudo,
+    `\r\n--${limite}--`
+  ]);
+
+  const resposta = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": `multipart/related; boundary=${limite}`
+    },
+    body: corpo
+  });
+
+  if(!resposta.ok) throw new Error("Falha ao enviar " + nomeArquivo + " pro Drive (" + resposta.status + ")");
+  return resposta.json();
+}
+
+/* Baixa o código-fonte inteiro do repositório público no GitHub, num
+   único .zip — não precisa de senha/token porque o repositório é
+   público. */
+async function baixarZipDoGithub(){
+  const url = `https://api.github.com/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NOME}/zipball/${GITHUB_REPO_BRANCH}`;
+  const resposta = await fetch(url);
+  if(!resposta.ok) throw new Error("Falha ao baixar o código do GitHub (" + resposta.status + ")");
+  return resposta.blob();
+}
+
+async function executarBackupCompleto(incluirGithub, incluirSupabase){
+  if(backupEmAndamento) return;
+  if(!incluirGithub && !incluirSupabase){
+    mostrarToast("Marque pelo menos uma opção pra fazer o backup.");
+    return;
+  }
+
+  backupEmAndamento = true;
+  renderTelaBackup();
+
+  const erros = [];
+  let algumSucesso = false;
+
+  try{
+    const token = await obterTokenGoogleDrive();
+    const pastaId = await obterOuCriarPastaBackup(token);
+
+    const agora = new Date();
+    const pad = n => String(n).padStart(2, "0");
+    const carimbo = `${agora.getFullYear()}${pad(agora.getMonth()+1)}${pad(agora.getDate())}-${pad(agora.getHours())}${pad(agora.getMinutes())}`;
+
+    if(incluirSupabase){
+      const tabelas = ["contatos", "opcoes_lista", "mensagens_whatsapp"];
+      for(const tabela of tabelas){
+        try{
+          const csv = await baixarTabelaCompleta(tabela);
+          await subirArquivoParaDrive(token, pastaId, `${tabela}-${carimbo}.csv`, csv, "text/csv");
+          algumSucesso = true;
+        }catch(err){
+          erros.push(tabela + ": " + err.message);
+        }
+      }
+    }
+
+    if(incluirGithub){
+      try{
+        const zip = await baixarZipDoGithub();
+        await subirArquivoParaDrive(token, pastaId, `codigo-fonte-${carimbo}.zip`, zip, "application/zip");
+        algumSucesso = true;
+      }catch(err){
+        erros.push("GitHub: " + err.message);
+      }
+    }
+
+    estado.ultimoBackupLink = `https://drive.google.com/drive/folders/${pastaId}`;
+
+    if(erros.length === 0){
+      mostrarToast("Backup enviado pro Google Drive!");
+    } else if(algumSucesso){
+      mostrarToast("Backup parcial — alguns itens falharam: " + erros.join(" | "));
+    } else {
+      mostrarToast("Backup falhou: " + erros.join(" | "));
+    }
+  }catch(err){
+    mostrarToast("Erro no backup: " + err.message);
+  }finally{
+    backupEmAndamento = false;
+    renderTelaBackup();
+  }
+}
+
+function abrirTelaBackup(){
+  estado.naTelaBackup = true;
+  renderTelaBackup();
+  abrirSheetElemento();
+}
+
+function fecharTelaBackup(){
+  estado.naTelaBackup = false;
+  fecharSheet();
+}
+
+function renderTelaBackup(){
+  const sheet = document.getElementById("sheet");
+
+  sheet.innerHTML = `
+    <div class="sheet-handle"></div>
+    <div class="sheet-header"><h3>Backup</h3><button class="close" id="fecharSheet">✕</button></div>
+    <div class="sheet-body">
+      <div class="mensagem-whatsapp-box">
+        <div class="mensagem-whatsapp-titulo">O que incluir</div>
+        <p style="color:var(--ink-faint);font-size:12px;margin:0 0 10px;">
+          Envia tudo direto pro Google Drive, sempre na mesma pasta "Backups MATRÍCULAS", sem precisar escolher onde salvar toda vez.
+        </p>
+
+        <div class="check-row">
+          <input type="checkbox" id="chkBackupGithub" checked ${backupEmAndamento ? "disabled" : ""}>
+          <label for="chkBackupGithub">GitHub (Hospedagem) — código-fonte do app</label>
+        </div>
+        <div class="check-row">
+          <input type="checkbox" id="chkBackupSupabase" checked ${backupEmAndamento ? "disabled" : ""}>
+          <label for="chkBackupSupabase">Supabase (Banco) — contatos, opções e mensagens</label>
+        </div>
+
+        <button class="btn ghost" id="btnExecutarBackup" style="width:100%;margin-top:10px;" ${backupEmAndamento ? "disabled" : ""}>
+          ${backupEmAndamento ? "Enviando pro Drive..." : "Fazer backup"}
+        </button>
+        ${estado.ultimoBackupLink ? `<p style="margin:10px 0 0;font-size:12.5px;"><a href="${estado.ultimoBackupLink}" target="_blank" rel="noopener">Abrir pasta de backups no Drive →</a></p>` : ""}
+      </div>
+    </div>
+  `;
+
+  document.getElementById("fecharSheet").addEventListener("click", fecharTelaBackup);
+  document.getElementById("btnExecutarBackup").addEventListener("click", () => {
+    const incluirGithub = document.getElementById("chkBackupGithub").checked;
+    const incluirSupabase = document.getElementById("chkBackupSupabase").checked;
+    executarBackupCompleto(incluirGithub, incluirSupabase);
+  });
+}
+
 function abrirTelaAgenda(){
   estado.naTelaAgenda = true;
   renderTelaAgenda();
